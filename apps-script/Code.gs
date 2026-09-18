@@ -179,7 +179,7 @@ function enviarResumoDiario(forcar) {
   const t = Core.textoResumo(pedidos, cfg, hoje);
   if (t.vazio && !cfg.enviarSeVazio && !forcar) return { pulado: 'vazio' };
   const assunto = (forcar ? '[teste] ' : '') + t.assunto;
-  MailApp.sendEmail({ to: para, subject: assunto, body: t.corpo, htmlBody: '<pre style="font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;white-space:pre-wrap">' + t.corpo.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/(https?:\/\/\S+)/g, '<a href="$1">$1</a>') + '</pre>' });
+  MailApp.sendEmail({ to: para, name: 'Sistema de Pedidos', replyTo: para, subject: assunto, body: t.corpo, htmlBody: '<pre style="font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;white-space:pre-wrap">' + t.corpo.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/(https?:\/\/\S+)/g, '<a href="$1">$1</a>') + '</pre>' });
   appendLog([{ quando: new Date().toISOString(), tipo: forcar ? 'email-teste' : 'email', assunto, para }]);
   return { para, assunto };
 }

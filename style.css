@@ -31,6 +31,10 @@ code { background: var(--leve); padding: 1px 5px; border-radius: 4px; font-size:
 .sync.off { color: var(--mudo); }
 
 main { padding: 16px; max-width: 1500px; margin: 0 auto; }
+.aviso { position: sticky; top: 49px; z-index: 19; padding: 10px 16px; font-size: 13px; line-height: 1.5; border-bottom: 1px solid transparent; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.aviso.amarelo { background: #fef3c7; color: #78350f; border-color: #fde68a; }
+.aviso.vermelho { background: #fee2e2; color: #7f1d1d; border-color: #fecaca; }
+.aviso .btn-mini { background: #fff; }
 .painel { display: block; }
 
 /* controles */

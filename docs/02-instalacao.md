@@ -79,11 +79,17 @@ O sistema tem duas partes:
 | Sintoma | O que fazer |
 |---|---|
 | Canto direito mostra **Sem planilha** | Configurações → Conexão: falta link ou chave. |
-| **Erro ao gravar** / **Erro ao ler** | Passe o mouse em cima pra ver a mensagem. "Chave inválida" = chave errada. Erro de rede = sem internet, o app guarda e reenvia sozinho. |
-| **N pendentes** em amarelo por muito tempo | As alterações estão guardadas no navegador esperando internet. Não feche o navegador limpando dados. Assim que conectar, vai. |
+| **Erro ao gravar** (vermelho) | O app guarda a alteração e tenta de novo sozinho a cada 30 s. Se persistir, aparece uma faixa no topo dizendo o motivo: sem internet (amarela), chave recusada, ou o Google não respondeu (vermelha). Nesse último caso: **aguarde alguns minutos e tente novamente; se continuar, fale com um dev.** |
+| **N pendentes** (amarelo) por mais de 2 minutos | Aparece uma faixa no topo com o número de alterações guardadas só no navegador. **Não feche o navegador limpando os dados** até virar "Salvo" em verde. Botões na faixa: "Tentar agora" e "Baixar cópia (CSV)" pra ter um backup do que está na tela. Se fechar a aba com pendência, o navegador avisa antes. |
+| **Erro ao ler** | Mostra a última cópia guardada. Mesmos motivos acima. |
 | Mudei o script e parou | Depois de editar o código, precisa **Implantar → Gerenciar implantações → editar (lápis) → Versão: Nova → Implantar**. O link continua o mesmo. |
-| E-mail não chega | Configurações → Avisos: está ligado? dia da semana marcado? Teste com "Enviar e-mail de teste". Veja a aba `log` na planilha. Cheque o spam na primeira vez. |
+| E-mail não chega | 1) Olhe a pasta de **spam** e marque "Não é spam"; adicione o remetente aos contatos ("remetente confiável"). 2) Configurações → Avisos: está ligado? dia da semana marcado? 3) "Enviar e-mail de teste". 4) Aba `log` na planilha mostra cada envio. |
 | Quero começar do zero no navegador | Configurações → Dados → Limpar cache. Os dados continuam na planilha. |
+
+## Quem envia o e-mail
+
+O e-mail sai da conta Google que publicou o script (quem fez a Parte 4). Ele chega com o nome "Sistema de Pedidos" e, ao responder, vai pro e-mail de destino configurado.
+Pra sair de outra conta, essa conta precisa abrir o Apps Script da planilha, fazer a própria implantação (Parte 4) e rodar `instalarGatilho` uma vez; e a conta antiga precisa apagar o gatilho dela (relógio na esquerda do editor), senão o e-mail chega em dobro.
 
 ## Segurança, em uma linha
 

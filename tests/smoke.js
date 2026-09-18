@@ -7,8 +7,16 @@ const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/M
 const PORTA = 8765, DBG = 9333;
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.csv': 'text/csv' };
 
+const API = { pedidos: [], posts: [] }; // planilha simulada por HTTP (pra testar a sincronização de verdade)
 const servidor = http.createServer((req, res) => {
-  const p = path.join(RAIZ, decodeURIComponent(req.url.split('?')[0]) === '/' ? 'index.html' : decodeURIComponent(req.url.split('?')[0]));
+  const u = decodeURIComponent(req.url.split('?')[0]);
+  if (u === '/api-chave') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, erro: 'Chave inválida' })); }
+  if (u === '/api-ok') {
+    if (req.method === 'POST') { let b = ''; req.on('data', d => b += d); req.on('end', () => { API.posts.push(JSON.parse(b)); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: true })); }); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true, pedidos: API.pedidos, fornecedores: [], transportadoras: [], tags: [], config: { emailDestino: 'x@y.z' } }));
+  }
+  const p = path.join(RAIZ, u === '/' ? 'index.html' : u);
   fs.readFile(p, (e, d) => { if (e) { res.writeHead(404); res.end(); return; } res.writeHead(200, { 'Content-Type': MIME[path.extname(p)] || 'text/plain' }); res.end(d); });
 }).listen(PORTA);
 
@@ -154,10 +162,48 @@ async function json(url) { const r = await fetch(url); return r.json(); }
   t('extra visível na tabela', await ev(`document.querySelectorAll('#tabela-corpo input[data-k="x:coluna_nova"]').length`) >= 1);
   t('obs ainda preservada', await ev(`SJO.S.pedidos.find(p=>p.po==='900001').obs`) === 'Agendado 20/09');
 
+  // sincronização: erro de rede → banner amarelo
+  await ev(`SJO.L.apiUrl = 'http://127.0.0.1:1/'; SJO.L.chave = 'x'; SJO.LIMIAR.erros = 1; 'ok'`);
+  await ev(`SJO.flush()`);
+  t('pill erro', /Erro ao gravar/.test(await ev(`document.querySelector('#sync').textContent`)));
+  t('banner rede visível', await ev(`!document.querySelector('#aviso').classList.contains('oculto') && document.querySelector('#aviso').classList.contains('amarelo')`) === true);
+  t('banner texto rede', /Sem internet/.test(await ev(`document.querySelector('#aviso').textContent`)));
+  t('banner diz pra não fechar', /Não feche o navegador/.test(await ev(`document.querySelector('#aviso').textContent`)));
+  // google respondeu HTML → banner vermelho
+  await ev(`SJO.L.apiUrl = 'http://127.0.0.1:' + ${PORTA} + '/index.html'; 'ok'`);
+  await ev(`SJO.flush()`);
+  t('banner google', /Google não respondeu/.test(await ev(`document.querySelector('#aviso').textContent`)) && await ev(`document.querySelector('#aviso').classList.contains('vermelho')`) === true);
+  t('banner tem "fale com um dev"', /fale com um dev/.test(await ev(`document.querySelector('#aviso').textContent`)));
+  // chave inválida
+  await ev(`SJO.L.apiUrl = 'http://127.0.0.1:' + ${PORTA} + '/api-chave'; 'ok'`);
+  await ev(`SJO.flush()`);
+  t('banner chave', /recusou a chave/.test(await ev(`document.querySelector('#aviso').textContent`)));
+  // sem conexão configurada com fila → aviso
+  await ev(`SJO.L.apiUrl = ''; SJO.renderAviso(); 'ok'`);
+  t('banner sem conexão', /Sem conexão configurada/.test(await ev(`document.querySelector('#aviso').textContent`)));
+  // servidor ok → grava tudo, banner some, pill Salvo, POSTs chegaram com a chave
+  const filaAntes = await ev(`SJO.S.fila.length`);
+  await ev(`SJO.L.apiUrl = 'http://127.0.0.1:' + ${PORTA} + '/api-ok'; SJO.L.chave = 'segredo'; 'ok'`);
+  await ev(`SJO.flush()`);
+  t('fila esvaziou', await ev(`SJO.S.fila.length`) === 0 && filaAntes > 0);
+  t('pill Salvo', await ev(`document.querySelector('#sync').textContent`) === 'Salvo');
+  t('banner sumiu', await ev(`document.querySelector('#aviso').classList.contains('oculto')`) === true);
+  t('POSTs chegaram com chave', API.posts.length >= filaAntes && API.posts.every(p => p.chave === 'segredo'));
+  t('upsert enviado com pedidos', API.posts.some(p => p.acao === 'upsertPedidos' && p.pedidos.length >= 5));
+  t('config enviada sem chave/apiUrl', API.posts.filter(p => p.acao === 'salvarConfig').every(p => p.config.apiUrl === undefined && p.config.chave === undefined));
+  // leitura: servidor devolve 1 pedido → substitui local
+  API.pedidos = [{ po: 'SRV1', fornecedor: 'DO SERVIDOR', limite: '2026-12-01', qtd: 3, extras: {} }];
+  t('sincronizar lê do servidor', await ev(`SJO.sincronizar(true)`) === true);
+  t('pedidos vieram do servidor', await ev(`SJO.S.pedidos.length === 1 && SJO.S.pedidos[0].po === 'SRV1'`) === true);
+  t('config do servidor aplicada', await ev(`SJO.S.config.emailDestino`) === 'x@y.z');
+  // volta ao estado sem conexão pra testar persistência
+  await ev(`SJO.L.apiUrl = ''; SJO.L.chave = ''; 'ok'`);
+  await ev(`(function(){ const i = document.querySelector('#tabela-corpo input[data-k="obs"][data-po="SRV1"]'); i.value = 'x'; i.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
+
   // persistência: recarrega a página
   await cmd('Page.navigate', { url: 'http://127.0.0.1:' + PORTA + '/index.html#pedidos' });
   await dorme(1000);
-  t('recarregou com dados', await ev(`SJO.S.pedidos.length`) === 5);
+  t('recarregou com dados', await ev(`SJO.S.pedidos.length`) === 1);
   t('fila preservada', await ev(`SJO.S.fila.length`) >= 1);
 
   t('sem erros de JS', erros.length === 0);

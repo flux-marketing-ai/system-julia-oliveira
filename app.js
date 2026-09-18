@@ -44,12 +44,55 @@
   // ---------------- API / sincronização ----------------
   const conectado = () => !!(L.apiUrl && L.chave);
   let flushando = false, timerFlush = null;
+  // erros seguidos, tipo do último erro e quando a fila começou a acumular (S.filaDesde persiste)
+  const SY = { erros: 0, tipo: '', msg: '', forcarAviso: false };
+  const LIMIAR = { pendenteMs: 2 * 60000, erros: 2 };
 
   function setSync(cls, txt, title) { const el = $('#sync'); el.className = 'sync ' + cls; el.textContent = txt; el.title = title || ''; }
   function atualizarSync() {
-    if (!conectado()) return setSync('off', 'Sem planilha', 'Configure a conexão em Configurações');
-    if (S.fila.length) return setSync('pendente', S.fila.length + ' pendente' + (S.fila.length > 1 ? 's' : ''), 'Aguardando gravar na planilha');
-    setSync('ok', 'Salvo', S.ultimaSync ? 'Última sincronização: ' + S.ultimaSync : '');
+    if (!conectado()) setSync('off', 'Sem planilha', 'Configure a conexão em Configurações');
+    else if (S.fila.length && SY.erros) setSync('erro', 'Erro ao gravar · ' + S.fila.length + ' pendente' + (S.fila.length > 1 ? 's' : ''), SY.msg);
+    else if (S.fila.length) setSync('pendente', S.fila.length + ' pendente' + (S.fila.length > 1 ? 's' : ''), 'Aguardando gravar na planilha');
+    else setSync('ok', 'Salvo', S.ultimaSync ? 'Última sincronização: ' + S.ultimaSync : '');
+    renderAviso();
+  }
+
+  // rede (sem internet / bloqueio) · chave · planilha (setup) · google (respondeu HTML ou 5xx) · outro
+  function classificarErro(e) {
+    const m = String((e && e.message) || e || '');
+    if (e instanceof TypeError || /fetch|network|Load failed/i.test(m)) return 'rede';
+    if (/Chave inválida/i.test(m)) return 'chave';
+    if (/setup\(\)|não existe/i.test(m)) return 'planilha';
+    if (e instanceof SyntaxError || /JSON|Unexpected token|Resposta inválida/i.test(m)) return 'google';
+    return 'outro';
+  }
+  function registrarErro(e) {
+    SY.erros++; SY.tipo = classificarErro(e); SY.msg = String((e && e.message) || e || '');
+    console.warn('sincronização', SY.tipo, e);
+    if (SY.erros === 1 && S.fila.length) toast('Não consegui gravar na planilha. Guardei aqui e vou tentar de novo sozinho.', true);
+  }
+  function tempoDesde(ts) {
+    const min = Math.round((Date.now() - ts) / 60000);
+    return min < 1 ? 'agora' : min < 60 ? 'há ' + min + ' min' : 'há ' + Math.round(min / 60) + ' h';
+  }
+  function renderAviso() {
+    const el = $('#aviso'); if (!el) return;
+    const n = S.fila.length;
+    let mostrar = false, cls = 'amarelo', html = '';
+    const acoes = '<button class="btn-mini" data-aviso="tentar">Tentar agora</button> <button class="btn-mini" data-aviso="copia">Baixar cópia (CSV)</button>';
+    const guarda = n + (n === 1 ? ' alteração guardada' : ' alterações guardadas') + ' neste navegador' + (S.filaDesde ? ' (' + tempoDesde(S.filaDesde) + ')' : '') + '. <b>Não feche o navegador limpando os dados</b> até aparecer "Salvo" em verde.';
+    if (n && !conectado()) {
+      mostrar = true; html = '<b>Sem conexão configurada.</b> ' + guarda + ' Configure a conexão em Configurações. ' + '<button class="btn-mini" data-aviso="config">Abrir Configurações</button>';
+    } else if (n && (SY.forcarAviso || SY.erros >= LIMIAR.erros || (S.filaDesde && Date.now() - S.filaDesde > LIMIAR.pendenteMs))) {
+      mostrar = true;
+      if (SY.tipo === 'chave') { cls = 'vermelho'; html = '<b>A planilha recusou a chave de acesso.</b> ' + guarda + ' Confira a chave em Configurações → Conexão. <button class="btn-mini" data-aviso="config">Abrir Configurações</button> ' + acoes; }
+      else if (SY.tipo === 'planilha') { cls = 'vermelho'; html = '<b>A planilha não está preparada</b> (' + esc(SY.msg) + '). ' + guarda + ' Fale com um dev. ' + acoes; }
+      else if (SY.tipo === 'google') { cls = 'vermelho'; html = '<b>O Google não respondeu direito.</b> ' + guarda + ' Aguarde alguns minutos e tente novamente. Se continuar, fale com um dev. ' + acoes; }
+      else if (SY.tipo === 'outro') { cls = 'vermelho'; html = '<b>Erro ao gravar:</b> ' + esc(SY.msg) + '. ' + guarda + ' Aguarde e tente novamente. Se continuar, fale com um dev. ' + acoes; }
+      else { html = '<b>Sem internet ou a planilha não respondeu.</b> ' + guarda + ' Reenvio automático a cada 30 s. ' + acoes; }
+    }
+    el.className = 'aviso ' + cls + (mostrar ? '' : ' oculto');
+    if (mostrar) el.innerHTML = html;
   }
 
   async function apiGet(params) {
@@ -80,6 +123,7 @@
       else if (op.acao === 'log') ult.entradas = ult.entradas.concat(op.entradas);
       else S.fila.push(op);
     } else S.fila.push(op);
+    if (!S.filaDesde) S.filaDesde = Date.now();
     salvarLocal(); atualizarSync();
     clearTimeout(timerFlush); timerFlush = setTimeout(flush, 800);
   }
@@ -92,13 +136,12 @@
         const op = S.fila[0]; op.emVoo = true;
         const corpo = Object.assign({}, op); delete corpo.emVoo;
         await apiPost(corpo);
-        S.fila.shift(); salvarLocal(); atualizarSync();
+        S.fila.shift(); SY.erros = 0; SY.forcarAviso = false; salvarLocal(); atualizarSync();
       }
-      S.ultimaSync = new Date().toLocaleString('pt-BR'); salvarLocal(); atualizarSync();
+      S.filaDesde = 0; S.ultimaSync = new Date().toLocaleString('pt-BR'); salvarLocal(); atualizarSync();
     } catch (e) {
       if (S.fila[0]) S.fila[0].emVoo = false;
-      setSync('erro', 'Erro ao gravar', String(e.message || e));
-      console.warn('flush', e);
+      registrarErro(e); atualizarSync();
     } finally { flushando = false; }
   }
 
@@ -119,8 +162,9 @@
       if (!silencioso) toast('Sincronizado com a planilha');
       return true;
     } catch (e) {
+      const tipo = classificarErro(e);
       setSync('erro', 'Erro ao ler', String(e.message || e));
-      if (!silencioso) toast('Não consegui ler a planilha: ' + (e.message || e), true);
+      if (!silencioso) toast(tipo === 'rede' ? 'Sem internet ou a planilha não respondeu. Mostrando a última cópia guardada.' : tipo === 'chave' ? 'A planilha recusou a chave. Confira em Configurações.' : 'Não consegui ler a planilha (' + (e.message || e) + '). Aguarde e tente novamente; se continuar, fale com um dev.', true);
       return false;
     }
   }
@@ -690,7 +734,7 @@
       if (!conectado()) { msg.textContent = 'Configure a conexão primeiro.'; return; }
       if (!S.config.emailDestino) { msg.textContent = 'Informe o e-mail de destino.'; return; }
       msg.textContent = 'Enviando…';
-      try { await flush(); const r = await apiPost({ acao: 'testarEmail' }); msg.textContent = 'Enviado para ' + (r.para || S.config.emailDestino) + '.'; }
+      try { await flush(); const r = await apiPost({ acao: 'testarEmail' }); msg.textContent = 'Enviado para ' + (r.para || S.config.emailDestino) + '. Não apareceu? Olhe a pasta de spam e marque "Não é spam".'; }
       catch (e) { msg.textContent = 'Falhou: ' + (e.message || e); }
     });
     $('#c-acoes').addEventListener('change', e => { S.config.acoes = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); salvarConfig(); renderDatalists(); });
@@ -793,6 +837,17 @@
       localStorage.removeItem(LS); location.reload();
     });
 
+    // aviso de pendências / erro
+    $('#aviso').addEventListener('click', e => {
+      const b = e.target.closest('button[data-aviso]'); if (!b) return;
+      if (b.dataset.aviso === 'tentar') { SY.forcarAviso = true; flush().then(() => { if (!S.fila.length) toast('Tudo gravado na planilha'); }); }
+      else if (b.dataset.aviso === 'copia') exportar(C.ordenar(S.pedidos, 'limite', 'asc', ctx()), 'pedidos-copia');
+      else if (b.dataset.aviso === 'config') { irPara('config'); $('#cfg-conexao').scrollIntoView(); }
+    });
+    $('#sync').addEventListener('click', () => { if (S.fila.length) { SY.forcarAviso = true; renderAviso(); flush(); } });
+    window.addEventListener('beforeunload', e => { if (S.fila.length && conectado()) { e.preventDefault(); e.returnValue = 'Há alterações ainda não gravadas na planilha.'; } });
+    setInterval(renderAviso, 30000);
+
     // sincronização periódica
     window.addEventListener('online', () => flush());
     setInterval(() => { if (S.fila.length) flush(); }, 30000);
@@ -810,5 +865,5 @@
   irPara(['dash', 'pedidos', 'config'].includes(abaInicial) ? abaInicial : (conectado() || S.pedidos.length ? UI.aba : 'config'));
   atualizarSync();
   if (conectado()) sincronizar(true);
-  window.SJO = { S, L, UI, sincronizar, flush }; // pra depuração no console
+  window.SJO = { S, L, UI, SY, LIMIAR, sincronizar, flush, renderAviso }; // pra depuração no console
 })();

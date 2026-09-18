@@ -93,6 +93,17 @@ t('data calculada quando falta', C.mesclarImportacao([], impS, hoje).pedidos[0].
 t('saldo', C.saldo({ qtd: 99, qtdEntregue: 56 }) === 43);
 t('temSaldo', C.temSaldo({ qtd: 99, qtdEntregue: 56 }) && !C.temSaldo({ qtd: 99, qtdEntregue: 0 }) && !C.temSaldo({ qtd: 99, qtdEntregue: 99 }));
 
+// remessa
+t('remessa padrão 1', C.remessaDe(C.pedidoVazio()) === '1' && C.remessaDe({}) === '1');
+t('remessa 2', C.remessaDe({ remessa: '2' }) === '2' && C.remessaDe({ remessa: 2 }) === '2');
+t('filtro remessa 1 exclui 2', C.filtrar([{ po: 'a', remessa: '2', limite: '2026-10-01' }, { po: 'b', limite: '2026-10-01' }], { remessa: '1' }, { hoje }).length === 1);
+t('filtro remessa todas', C.filtrar([{ po: 'a', remessa: '2', limite: '2026-10-01' }, { po: 'b', limite: '2026-10-01' }], { remessa: 'todas' }, { hoje }).length === 2);
+t('e-mail marca 2ª remessa', /2ª remessa, saldo 43/.test(C.textoResumo([{ po: 'z', fornecedor: 'F', limite: '2026-09-01', qtd: 99, qtdEntregue: 56, remessa: '2' }], {}, hoje).corpo));
+t('export remessa legível', /2ª remessa/.test(C.exportarCSV([{ po: 'z', remessa: '2' }], ['po', 'remessa'], { hoje })));
+t('tag padrão usa código do relatório', C.TAGS_PADRAO.find(x => x.id === 'tipo:now_crossdocking').nome === 'now_crossdocking');
+t('time é coluna padrão', C.CONFIG_PADRAO.colunasVisiveis.includes('time'));
+t('leadBob oculto', C.CAMPO.leadBob.oculto === true);
+
 // filtrar / ordenar
 const todos = m.pedidos;
 t('filtro abertos', C.filtrar(todos, { status: 'abertos' }, { hoje }).length === 5);

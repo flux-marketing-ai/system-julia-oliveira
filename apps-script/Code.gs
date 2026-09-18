@@ -7,7 +7,7 @@
 const ABAS = {
   pedidos: ['po', 'status', 'fornecedor', 'tipo', 'limite', 'qtd', 'qtdEntregue', 'saldo', 'acao', 'dataAcao', 'obs', 'update',
     'time', 'valor', 'armazem', 'campanha', 'campanhaId', 'envio', 'leadWms', 'leadBob', 'pagamento', 'inicioCampanha',
-    'finalCampanha', 'finalizacao', 'criadoEm', 'origem', 'extras'],
+    'finalCampanha', 'finalizacao', 'criadoEm', 'origem', 'remessa', 'extras'],
   fornecedores: ['id', 'nome', 'aliases', 'cor', 'transportadora', 'diaEntrega', 'prazoNF', 'coleta', 'obs'],
   transportadoras: ['id', 'nome', 'email', 'diaEntrega', 'regra'],
   tags: ['id', 'grupo', 'codigo', 'nome', 'cor'],

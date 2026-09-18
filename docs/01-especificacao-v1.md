@@ -241,7 +241,21 @@ Backup: histórico de versões do Google Sheets (nativo) + botão "Exportar tudo
 
 ---
 
-## 10. Perguntas pra Julia (antes de construir)
+## 10. Perguntas pra Julia (respondidas em 18/09/2026, por áudio)
+
+| # | Pergunta | Resposta da Julia | O que mudou no app |
+|---|---|---|---|
+| 1 | Segunda remessa = saldo de entrega parcial? Aba separada? | Sim: entrega parcial, item similar, ou "qualquer BO" que impeça entregar tudo junto. **Prefere separado, como na planilha.** | Seletor "1ª remessa / 2ª remessa / Todas" dentro da aba Pedidos (mantém as 3 abas). Vai pra 2ª sozinho ao registrar entrega parcial, ou pelo botão "→ 2ª". |
+| 2 | "Vence hoje" é atrasado? | **Não, em andamento.** | Já era assim. Confirmado. |
+| 3 | Relatório sempre no mesmo formato? | **Sim, sempre.** Ela usa só as colunas C F H I K O (Tipo PO, PO, Fornecedor, Time, Qtd Peças, Delivery Time). | Time vira coluna padrão. Detecção de coluna nova fica como segurança. |
+| 4 | Lead Time BOB e Forma Pagamento? | **Não usa nenhum dos dois.** | Saem da lista de colunas (ficam guardados, invisíveis). |
+| 5 | Página 3? | Só uma página com fornecedores pra saber **de qual grupo cada um é**. | Campo "Grupo / transportadora" no cadastro de fornecedor. |
+| 6 | Quem usa? | **Só ela.** | Uma chave, sem multiusuário. |
+| 7 | E-mail? | Enviou (corporativo). **Não vai pro repositório**: ela cola em Configurações, fica na planilha privada. | — |
+
+Ainda em aberto (não travam nada): feriado conta como dia útil no lead time? Ativo/Preventivo (só pra nomear ação). Importar histórico a partir de alguma data?
+
+Perguntas originais, pra registro:
 
 1. **Página 2 (segunda remessa) é o saldo de pedidos entregues parcialmente?** Se sim, pode virar campo "saldo" na mesma linha, ou ela prefere aba separada?
 2. "Vence hoje" é atrasado ou em andamento?
@@ -305,7 +319,9 @@ Validação item a item. O que mudou em relação ao rascunho:
 - "Vence hoje" = em andamento, destacado em amarelo. Julia confirma depois.
 - LGPD: sistema de uso exclusivo da Julia, planilha privada. Sem bloqueio.
 
+**Nomenclatura (Victor, 18/09):** usar o que já existe. Tags aparecem com o código do relatório (now_crossdocking, STORE, Decor…); ela renomeia se quiser.
+
 **Próximos passos**
-- Construir agora, ajustar conforme as respostas da Julia.
+- v1 construída e no ar em 18/09 (ver README). Falta: Julia instalar a planilha (docs/02-instalacao.md) e testar com relatório real.
 - Teste com relatório real: Julia ou o próprio Victor.
 - Perguntar à Julia se precisa importar histórico a partir de alguma data (a planilha atual tem 505 linhas na página 1).

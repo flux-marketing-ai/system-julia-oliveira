@@ -76,10 +76,24 @@ async function json(url) { const r = await fetch(url); return r.json(); }
   await ev(`(function(){ const i = document.querySelector('#pop-colunas input[value="qtdEntregue"]'); i.checked = true; i.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
   await ev(`(function(){ const i = document.querySelector('#tabela-corpo input[data-k="qtdEntregue"][data-po="900001"]'); i.value = '80'; i.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
   t('saldo 40', await ev(`Core.saldo(SJO.S.pedidos.find(p=>p.po==='900001'))`) === 40);
+  t('entrega parcial move pra 2ª remessa', await ev(`SJO.S.pedidos.find(p=>p.po==='900001').remessa`) === '2');
+  t('some da 1ª remessa', await ev(`document.querySelectorAll('#tabela-corpo tr[data-po="900001"]').length`) === 0);
+  await ev(`document.querySelector('#f-remessa button[data-v="2"]').click(); 'ok'`);
+  t('aparece na 2ª remessa', await ev(`document.querySelectorAll('#tabela-corpo tr').length`) === 1);
   t('tag saldo aparece', /Saldo/.test(await ev(`document.querySelector('#tabela-corpo tr[data-po="900001"]').innerHTML`)));
+  await ev(`document.querySelector('button[data-acao="remessa1"][data-po="900001"]').click(); 'ok'`);
+  t('voltou pra 1ª', await ev(`SJO.S.pedidos.find(p=>p.po==='900001').remessa`) === '1');
+  await ev(`document.querySelector('#f-remessa button[data-v="1"]').click(); 'ok'`);
+  await ev(`document.querySelector('button[data-acao="remessa2"][data-po="900005"]').click(); 'ok'`);
+  t('mover manual pra 2ª', await ev(`SJO.S.pedidos.find(p=>p.po==='900005').remessa`) === '2');
+  await ev(`document.querySelector('button[data-acao="remessa1"]') ? 'x' : (document.querySelector('#f-remessa button[data-v="2"]').click(), document.querySelector('button[data-acao="remessa1"][data-po="900005"]').click(), document.querySelector('#f-remessa button[data-v="1"]').click(), 'ok')`);
+  t('voltou 900005', await ev(`SJO.S.pedidos.find(p=>p.po==='900005').remessa`) === '1');
+  await ev(`document.querySelector('#f-remessa button[data-v="1"]').click(); 'ok'`);
+  t('5 linhas de novo na 1ª', await ev(`document.querySelectorAll('#tabela-corpo tr').length`) === 5);
   // finalizar
   await ev(`document.querySelector('button[data-acao="finalizar"][data-po="900003"]').click(); 'ok'`);
   t('finalizado some de abertos', await ev(`document.querySelectorAll('#tabela-corpo tr').length`) === 4);
+  t('remessa persiste após limpar filtros', await ev(`SJO.UI.filtros.remessa`) === '1');
   await ev(`(function(){ const s = document.querySelector('#f-status'); s.value = 'finalizado'; s.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
   t('filtro finalizados mostra 1', await ev(`document.querySelectorAll('#tabela-corpo tr').length`) === 1);
   await ev(`document.querySelector('#btn-limpar-filtros').click(); 'ok'`);

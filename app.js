@@ -12,7 +12,7 @@
   const LS = 'sjo_estado_v1', LS_LOCAL = 'sjo_local_v1';
   let S = { pedidos: [], fornecedores: [], transportadoras: [], tags: [], config: {}, fila: [], versao: 0, ultimaSync: '' };
   let L = { apiUrl: '', chave: '' }; // só neste navegador
-  let UI = { aba: 'dash', ordem: { col: 'limite', dir: 'asc' }, filtros: { status: 'abertos' }, buscaForn: '' };
+  let UI = { aba: 'dash', ordem: { col: 'limite', dir: 'asc' }, filtros: { status: 'abertos', remessa: '1' }, buscaForn: '' };
 
   function carregar() {
     try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) S = Object.assign(S, s); } catch (e) { }
@@ -126,7 +126,7 @@
   }
 
   // ---------------- Mutações ----------------
-  const CAMPOS_JULIA = ['acao', 'dataAcao', 'obs', 'qtdEntregue', 'finalizacao'];
+  const CAMPOS_JULIA = ['acao', 'dataAcao', 'obs', 'qtdEntregue', 'finalizacao', 'remessa'];
 
   function pedidoPorPO(po) { return S.pedidos.find(p => String(p.po) === String(po)); }
 
@@ -149,6 +149,7 @@
     else if (c && c.tipo === 'data') p[k] = C.parseData(valor);
     else p[k] = String(valor || '').trim();
     if (CAMPOS_JULIA.includes(k) || k.startsWith('x:')) p.update = hoje();
+    if (k === 'qtdEntregue' && C.temSaldo(p) && C.remessaDe(p) !== '2') { p.remessa = '2'; toast('PO ' + p.po + ' foi pra 2ª remessa (saldo ' + C.saldo(p) + ')'); }
     if (k === 'acao' && p.acao && !S.config.acoes.includes(p.acao)) { S.config.acoes.push(p.acao); salvarConfig(); }
     gravarPedidos([p]);
     renderTudo();
@@ -158,6 +159,11 @@
     p.finalizacao = desfazer ? '' : hoje(); p.update = hoje();
     gravarPedidos([p], { tipo: desfazer ? 'reabrir' : 'finalizar', po: p.po });
     renderTudo(); toast(desfazer ? 'Pedido reaberto' : 'PO ' + p.po + ' finalizado');
+  }
+  function moverRemessa(po, para) {
+    const p = pedidoPorPO(po); if (!p) return;
+    p.remessa = para; p.update = hoje();
+    gravarPedidos([p], { tipo: 'remessa', po: p.po, para }); renderTudo(); toast('PO ' + p.po + ' → ' + para + 'ª remessa');
   }
   function concluirAcao(po) {
     const p = pedidoPorPO(po); if (!p) return;
@@ -295,7 +301,7 @@
       kpi('Vencem em ' + ant + ' dias', r.vencem.length, C.fmtPct(r.vencem.length, r.abertos.length) + ' dos abertos', cor.vence, 'vence') +
       kpi('Ações hoje', rTudo.acoesHoje.length, rTudo.acoesHoje.filter(p => p.dataAcao < h).length + ' atrasadas', '#111827', 'acoes') +
       kpi(n.andamento, r.andamento.length, C.fmtPct(r.andamento.length, r.abertos.length) + ' dos abertos', cor.andamento, 'andamento') +
-      '<div class="kpi macro"><div class="t">Abertos</div><div class="n">' + r.abertos.length + '</div><div class="s">' + r.finalizados.length + ' finalizados · ' + C.fmtInt(pecasAbertas) + ' peças · ' + C.fmtMoeda(valorAberto) + '</div></div>';
+      '<div class="kpi macro"><div class="t">Abertos</div><div class="n">' + r.abertos.length + '</div><div class="s">' + r.abertos.filter(p => C.remessaDe(p) === '2').length + ' na 2ª remessa · ' + r.finalizados.length + ' finalizados · ' + C.fmtInt(pecasAbertas) + ' peças · ' + C.fmtMoeda(valorAberto) + '</div></div>';
 
     // gráficos
     $('#dash-metrica').value = S.config.dashMetrica || 'pedidos';
@@ -354,7 +360,7 @@
     const transp = Array.from(new Set(S.fornecedores.map(x => x.transportadora).filter(Boolean))).sort();
     opts($('#f-transp'), transp.map(v => ({ v, n: v })), f.transportadora || '', 'Transportadora');
     $('#f-status').value = f.status || 'abertos'; $('#f-status').classList.toggle('ativo', (f.status || 'abertos') !== 'abertos');
-    $('#f-saldos').checked = !!f.soSaldos;
+    $$('#f-remessa button').forEach(b => b.classList.toggle('ativo', b.dataset.v === (f.remessa || '1')));
     if ($('#busca').value !== (f.busca || '')) $('#busca').value = f.busca || '';
   }
 
@@ -381,6 +387,7 @@
         case 'qtd': case 'leadWms': case 'leadBob': return '<td class="num">' + C.fmtInt(v);
         case 'valor': return '<td class="num">' + C.fmtMoeda(v);
         case 'qtdEntregue': return inp('number', ' min="0"');
+        case 'remessa': return C.remessaDe(p) === '2' ? '2ª' : '1ª';
         case 'acao': return '<input list="dl-acoes" data-po="' + esc(p.po) + '" data-k="acao" value="' + esc(v) + '" placeholder="—">';
         case 'dataAcao': return inp('date');
         case 'obs': return inp('text', ' class="obs" placeholder="—"');
@@ -393,7 +400,8 @@
       const st = C.statusDe(p, h, ant);
       const tds = cols.map(k => { const c = cel(p, k); return c.startsWith('<td') ? c + '</td>' : '<td>' + c + '</td>'; }).join('');
       const btn = p.finalizacao ? '<button class="btn-mini" data-acao="reabrir" data-po="' + esc(p.po) + '">Reabrir</button>' : '<button class="btn-mini" data-acao="finalizar" data-po="' + esc(p.po) + '" title="Finalizar (data de hoje)">✓ Finalizar</button>';
-      return '<tr class="st-' + st + '" data-po="' + esc(p.po) + '">' + tds + '<td class="acoes">' + btn + ' <button class="btn-mini" data-acao="editar" data-po="' + esc(p.po) + '" title="Editar tudo">✎</button></td></tr>';
+      const mover = C.remessaDe(p) === '2' ? '<button class="btn-mini" data-acao="remessa1" data-po="' + esc(p.po) + '" title="Voltar pra 1ª remessa">← 1ª</button>' : '<button class="btn-mini" data-acao="remessa2" data-po="' + esc(p.po) + '" title="Mover pra 2ª remessa (entrega parcial, item similar, BO)">→ 2ª</button>';
+      return '<tr class="st-' + st + '" data-po="' + esc(p.po) + '">' + tds + '<td class="acoes">' + btn + ' ' + mover + ' <button class="btn-mini" data-acao="editar" data-po="' + esc(p.po) + '" title="Editar tudo">✎</button></td></tr>';
     });
     $('#tabela-corpo').innerHTML = linhas.join('');
     $('#tabela-vazio').classList.toggle('oculto', lista.length > 0);
@@ -403,7 +411,7 @@
   }
   function renderPopColunas() {
     const vis = S.config.colunasVisiveis || [];
-    const itens = C.CAMPOS.filter(c => c.k !== 'po').map(c => ({ k: c.k, n: c.nome })).concat((S.config.colunasExtras || []).map(e => ({ k: 'x:' + e.k, n: e.nome })));
+    const itens = C.CAMPOS.filter(c => c.k !== 'po' && !c.oculto).map(c => ({ k: c.k, n: c.nome })).concat((S.config.colunasExtras || []).map(e => ({ k: 'x:' + e.k, n: e.nome })));
     $('#pop-colunas').innerHTML = itens.map(i => '<label><input type="checkbox" value="' + esc(i.k) + '"' + (vis.includes(i.k) ? ' checked' : '') + '> ' + esc(i.n) + '</label>').join('');
   }
   function exportar(lista, nome) {
@@ -428,6 +436,7 @@
     const p = pedidoEmEdicao || C.pedidoVazio();
     form.tipo.innerHTML = opt('tipo', p.tipo); form.time.innerHTML = opt('time', p.time);
     ['po', 'fornecedor', 'envio', 'leadWms', 'limite', 'qtd', 'qtdEntregue', 'acao', 'dataAcao', 'obs', 'armazem', 'campanha', 'finalizacao'].forEach(k => { form[k].value = p[k] == null ? '' : p[k]; });
+    form.remessa.value = C.remessaDe(p);
     form.valor.value = p.valor ? Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '';
     $('#dlg-pedido-extras').innerHTML = (S.config.colunasExtras || []).map(e => '<div class="campo"><label>' + esc(e.nome) + '</label><input name="x:' + esc(e.k) + '" value="' + esc((p.extras || {})[e.k] || '') + '"></div>').join('');
     dlg.showModal();
@@ -443,7 +452,7 @@
       p = C.pedidoVazio(); p.po = po; p.origem = 'manual'; S.pedidos.push(p);
     }
     const antes = JSON.stringify(p);
-    ['fornecedor', 'tipo', 'time', 'acao', 'obs', 'armazem', 'campanha'].forEach(k => { p[k] = String(fd.get(k) || '').trim(); });
+    ['fornecedor', 'tipo', 'time', 'acao', 'obs', 'armazem', 'campanha', 'remessa'].forEach(k => { p[k] = String(fd.get(k) || '').trim(); });
     ['envio', 'limite', 'dataAcao', 'finalizacao'].forEach(k => { p[k] = C.parseData(fd.get(k)); });
     ['leadWms', 'qtd', 'qtdEntregue'].forEach(k => { p[k] = Math.max(0, Math.round(C.parseNumBR(fd.get(k)))); });
     p.valor = C.parseNumBR(fd.get('valor'));
@@ -579,7 +588,7 @@
     const selD = (k, v) => '<select data-k="' + k + '">' + DIAS_OPT.map(d => '<option value="' + d + '"' + (d === (v || '') ? ' selected' : '') + '>' + (d || '—') + '</option>').join('') + '</select>';
     const abertos = new Map(); S.pedidos.forEach(p => { if (!p.finalizacao) abertos.set(p.fornecedor, (abertos.get(p.fornecedor) || 0) + 1); });
     $('#tab-forn').innerHTML = '<datalist id="dl-transp">' + transp.map(t => '<option value="' + esc(t) + '">').join('') + '</datalist>' +
-      '<thead><tr><th>Cor</th><th>Nome</th><th>Nomes alternativos</th><th>Transportadora</th><th>Entrega</th><th>NF até</th><th>Coleta</th><th>Obs</th><th>Abertos</th><th></th></tr></thead><tbody>' +
+      '<thead><tr><th>Cor</th><th>Nome</th><th>Nomes alternativos</th><th>Grupo / transportadora</th><th>Entrega</th><th>NF até</th><th>Coleta</th><th>Obs</th><th>Abertos</th><th></th></tr></thead><tbody>' +
       lista.map(f => '<tr data-id="' + esc(f.id) + '"><td><input type="color" data-k="cor" value="' + esc(f.cor || '#d1d5db') + '"></td><td><input type="text" data-k="nome" value="' + esc(f.nome) + '" style="min-width:200px"></td><td><input type="text" data-k="aliases" value="' + esc(f.aliases || '') + '" placeholder="Outro nome | Mais um" style="min-width:160px"></td><td>' + selT(f) + '</td><td>' + selD('diaEntrega', f.diaEntrega) + '</td><td>' + selD('prazoNF', f.prazoNF) + '</td><td><input type="checkbox" data-k="coleta"' + (f.coleta ? ' checked' : '') + '></td><td><input type="text" data-k="obs" value="' + esc(f.obs || '') + '" placeholder="ex.: Milk Run" style="min-width:140px"></td><td class="num">' + (abertos.get(f.nome) || 0) + '</td><td><button class="btn-mini" data-del="forn">✕</button></td></tr>').join('') +
       '</tbody>';
     if (!lista.length) $('#tab-forn').innerHTML += '<tbody><tr><td colspan="10" class="vazio">Nenhum fornecedor' + (b ? ' com esse nome' : '') + '.</td></tr></tbody>';
@@ -600,19 +609,19 @@
     $('#kpis').addEventListener('click', e => {
       const k = e.target.closest('.kpi'); if (!k || !k.dataset.filtro) return;
       const f = k.dataset.filtro;
-      UI.filtros = f === 'acoes' ? { status: 'abertos' } : { status: f };
+      UI.filtros = f === 'acoes' ? { status: 'abertos', remessa: 'todas' } : { status: f, remessa: 'todas' };
       if (f === 'acoes') { UI.ordem = { col: 'dataAcao', dir: 'asc' }; }
       irPara('pedidos');
     });
     $('#tarefas-hoje').addEventListener('change', e => { if (e.target.type === 'checkbox') concluirAcao(e.target.dataset.po); });
-    $('#prox7').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) { UI.filtros = { status: 'abertos', busca: it.dataset.po }; irPara('pedidos'); } });
+    $('#prox7').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) { UI.filtros = { status: 'abertos', busca: it.dataset.po, remessa: 'todas' }; irPara('pedidos'); } });
 
     // pedidos: filtros
     let tBusca;
     $('#busca').addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => { UI.filtros.busca = e.target.value; salvarLocal(); renderPedidos(); }, 200); });
     [['#f-status', 'status'], ['#f-fornecedor', 'fornecedor'], ['#f-tipo', 'tipo'], ['#f-time', 'time'], ['#f-transp', 'transportadora']].forEach(([s, k]) => $(s).addEventListener('change', e => { UI.filtros[k] = e.target.value; salvarLocal(); renderPedidos(); }));
-    $('#f-saldos').addEventListener('change', e => { UI.filtros.soSaldos = e.target.checked; salvarLocal(); renderPedidos(); });
-    $('#btn-limpar-filtros').addEventListener('click', () => { UI.filtros = { status: 'abertos' }; salvarLocal(); renderPedidos(); });
+    $('#f-remessa').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; UI.filtros.remessa = b.dataset.v; salvarLocal(); renderPedidos(); });
+    $('#btn-limpar-filtros').addEventListener('click', () => { UI.filtros = { status: 'abertos', remessa: UI.filtros.remessa || '1' }; salvarLocal(); renderPedidos(); });
     $('#btn-colunas').addEventListener('click', e => { e.stopPropagation(); $('#pop-colunas').classList.toggle('oculto'); });
     document.addEventListener('click', e => { if (!e.target.closest('.menu-colunas')) $('#pop-colunas').classList.add('oculto'); });
     $('#pop-colunas').addEventListener('change', e => {
@@ -633,6 +642,8 @@
       if (b.dataset.acao === 'finalizar') finalizar(b.dataset.po);
       else if (b.dataset.acao === 'reabrir') finalizar(b.dataset.po, true);
       else if (b.dataset.acao === 'editar') abrirPedido(b.dataset.po);
+      else if (b.dataset.acao === 'remessa2') moverRemessa(b.dataset.po, '2');
+      else if (b.dataset.acao === 'remessa1') moverRemessa(b.dataset.po, '1');
     });
     $('#btn-exportar').addEventListener('click', () => exportar(C.ordenar(C.filtrar(S.pedidos, Object.assign({}, UI.filtros, { periodo: periodoAtual() }), ctx()), UI.ordem.col, UI.ordem.dir, ctx()), 'pedidos'));
     $('#btn-exportar-tudo').addEventListener('click', () => exportar(C.ordenar(S.pedidos, 'limite', 'asc', ctx()), 'pedidos-todos'));

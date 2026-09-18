@@ -80,6 +80,9 @@
   <!-- PEDIDOS -->
   <section id="aba-pedidos" class="painel oculto">
     <div class="barra">
+      <div class="segmento" id="f-remessa">
+        <button data-v="1" class="ativo">1ª remessa</button><button data-v="2">2ª remessa</button><button data-v="todas">Todas</button>
+      </div>
       <input type="search" id="busca" placeholder="Buscar PO, fornecedor, observação…" autocomplete="off">
       <select id="f-status">
         <option value="abertos">Abertos</option>
@@ -93,7 +96,6 @@
       <select id="f-tipo"><option value="">Tipo</option></select>
       <select id="f-time"><option value="">Time</option></select>
       <select id="f-transp"><option value="">Transportadora</option></select>
-      <label class="check"><input type="checkbox" id="f-saldos"> Só saldos</label>
       <button class="btn-leve" id="btn-limpar-filtros" title="Limpar filtros">Limpar</button>
       <span class="espaco"></span>
       <div class="menu-colunas">
@@ -199,7 +201,7 @@
 
         <div class="card" id="cfg-fornecedores">
           <h3>Fornecedores</h3>
-          <p class="mudo">Regra logística de cada um. Fornecedor novo no relatório entra sozinho, sem cor, pra você completar. "Nomes alternativos": outras grafias do mesmo fornecedor, separadas por |.</p>
+          <p class="mudo">Grupo (Milk Run, Dumar, Expresso Araújo…) e regra de cada um. Fornecedor novo no relatório entra sozinho, sem cor, pra você completar. "Nomes alternativos": outras grafias do mesmo fornecedor, separadas por |.</p>
           <div class="acoes-linha">
             <input type="search" id="busca-forn" placeholder="Buscar fornecedor…">
             <button class="btn-leve" id="btn-add-forn">+ Fornecedor</button>
@@ -283,6 +285,7 @@
     <div class="linha-campos">
       <div class="campo"><label>Próxima ação</label><input name="acao" list="dl-acoes"></div>
       <div class="campo"><label>Data da ação</label><input type="date" name="dataAcao"></div>
+      <div class="campo"><label>Remessa</label><select name="remessa"><option value="1">1ª remessa</option><option value="2">2ª remessa</option></select></div>
     </div>
     <div class="campo"><label>Observação</label><textarea name="obs" rows="2"></textarea></div>
     <div class="linha-campos">

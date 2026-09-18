@@ -69,7 +69,7 @@ O sistema tem duas partes:
 - **Todo dia:** o e-mail chega; a aba Dash mostra o mesmo em tela, com a lista "Hoje" pra ir marcando.
 - **Editar:** clique direto na célula (observação, próxima ação, data da ação, entregue). Salva sozinho. "Salvo" em verde no canto = gravou na planilha.
 - **Finalizar:** botão ✓ na linha. Some da lista padrão (filtro "Abertos"), fica no histórico (filtro "Finalizados"). Errou? "Reabrir".
-- **Entrega parcial:** ligue a coluna "Entregue" (botão Colunas), digite o que chegou. O saldo aparece na mesma linha com a tag "Saldo". Filtro "Só saldos" mostra só esses.
+- **Segunda remessa:** o seletor "1ª remessa | 2ª remessa | Todas" no topo da tabela. Um pedido vai pra 2ª remessa de dois jeitos: você digita a quantidade "Entregue" (ligue a coluna no botão Colunas) e o saldo fica em aberto na 2ª, com a tag "Saldo"; ou clica "→ 2ª" na linha (item similar, BO, etc.). "← 1ª" desfaz.
 - **Fornecedor novo no relatório:** entra sozinho em Configurações → Fornecedores, sem cor. Complete transportadora, dia de entrega e prazo de NF quando quiser. Isso aparece ao passar o mouse no nome dele na tabela.
 - **Tag nova no relatório:** entra sozinha em Configurações → Tags de tipo, com o código. Dê nome e cor.
 - **O relatório mudou de formato:** na importação o app avisa "coluna nova" e pergunta se adiciona ou ignora. Se uma coluna importante sumiu ou mudou de nome, ele pede pra você apontar qual é. Fica salvo.

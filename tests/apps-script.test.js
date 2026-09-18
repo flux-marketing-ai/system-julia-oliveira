@@ -66,7 +66,7 @@ t('post sem chave falha', post({ acao: 'upsertPedidos', pedidos: [] }).ok === fa
 // ---- pedidos ----
 const hoje = ctx.Core.hojeISO();
 const p1 = { po: '900001', fornecedor: 'ALFA', tipo: 'now_crossdocking', limite: '2026-10-07', qtd: 120, qtdEntregue: 0, valor: 8450, envio: '2026-09-16', leadWms: 15, obs: 'Agendado 20/09', acao: 'Agendado', dataAcao: '2026-09-20', update: hoje, extras: { coluna_nova: 'v1' }, criadoEm: hoje, origem: 'import' };
-const p2 = { po: '900002', fornecedor: 'BETA', tipo: 'ticket_active', limite: '2026-09-17', qtd: 40, valor: 1234.56, criadoEm: hoje, origem: 'import' };
+const p2 = { po: '900002', fornecedor: 'BETA', tipo: 'ticket_active', limite: '2026-09-17', qtd: 40, valor: 1234.56, criadoEm: hoje, origem: 'import', remessa: '2' };
 t('upsert 2', post({ acao: 'upsertPedidos', chave, pedidos: [p1, p2] }).ok === true);
 let tudo = get({ acao: 'tudo', chave });
 t('tudo ok', tudo.ok === true && tudo.pedidos.length === 2);
@@ -77,6 +77,7 @@ t('data volta como ISO string', l1.limite === '2026-10-07');
 t('extras volta como objeto', l1.extras && l1.extras.coluna_nova === 'v1');
 t('saldo calculado', l1.saldo === 120);
 t('config não expõe chave', tudo.config.chaveAcesso === undefined);
+t('remessa vai e volta', tudo.pedidos.find(p => p.po === '900002').remessa === '2');
 
 // upsert atualiza sem duplicar
 post({ acao: 'upsertPedidos', chave, pedidos: [Object.assign({}, p1, { obs: 'PO recebido', qtdEntregue: 80 })] });

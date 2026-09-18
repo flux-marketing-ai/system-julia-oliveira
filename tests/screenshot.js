@@ -30,7 +30,7 @@ const dorme = ms => new Promise(r => setTimeout(r, ms));
   // dados de exemplo pra tela ficar viva
   await ev(`(function(){ const S = SJO.S; const h = Core.hojeISO();
     const p = po => S.pedidos.find(x => x.po === po);
-    p('900001').obs = 'Agendado 20/09'; p('900001').acao = 'Agendado'; p('900001').dataAcao = Core.addDias(h, 2); p('900001').qtdEntregue = 80;
+    p('900001').obs = 'Agendado 20/09'; p('900001').acao = 'Agendado'; p('900001').dataAcao = Core.addDias(h, 2);
     p('900002').acao = 'Enviar ativo'; p('900002').dataAcao = h; p('900002').obs = 'Ag. retorno fornecedor';
     p('900003').acao = 'Agendar'; p('900003').dataAcao = Core.addDias(h, -1); p('900003').obs = 'Previsão 25/09';
     p('900004').finalizacao = h; p('900004').obs = 'NF recebida';

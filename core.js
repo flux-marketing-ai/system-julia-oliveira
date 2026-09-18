@@ -116,7 +116,7 @@
   }
 
   function parseCSV(texto, sep) {
-    texto = String(texto || '').replace(/^﻿/, '');
+    texto = String(texto || '').replace(/^\uFEFF/, '');
     sep = sep || detectaSeparador(texto);
     const linhas = []; let campo = '', linha = [], q = false;
     for (let i = 0; i < texto.length; i++) {
@@ -147,7 +147,7 @@
 
   // ---------- Normalização ----------
   function norm(s) {
-    return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
   function normChave(s) { return norm(s).replace(/ /g, '_'); }
@@ -167,15 +167,16 @@
     { k: 'dataAcao', nome: 'Data da ação', tipo: 'data', origem: 'julia', padrao: true },
     { k: 'obs', nome: 'Observação', tipo: 'texto', origem: 'julia', padrao: true },
     { k: 'update', nome: 'Update', tipo: 'data', origem: 'app', padrao: true },
-    { k: 'time', nome: 'Time', tipo: 'time', origem: 'relatorio', padrao: false },
+    { k: 'remessa', nome: 'Remessa', tipo: 'texto', origem: 'julia', padrao: false },
+    { k: 'time', nome: 'Time', tipo: 'time', origem: 'relatorio', padrao: true },
     { k: 'valor', nome: 'Valor', tipo: 'moeda', origem: 'relatorio', padrao: false },
     { k: 'armazem', nome: 'Armazém', tipo: 'texto', origem: 'relatorio', padrao: false },
     { k: 'campanha', nome: 'Campanha', tipo: 'texto', origem: 'relatorio', padrao: false },
     { k: 'campanhaId', nome: 'Campanha ID', tipo: 'texto', origem: 'relatorio', padrao: false },
     { k: 'envio', nome: 'Envio', tipo: 'data', origem: 'relatorio', padrao: false },
     { k: 'leadWms', nome: 'Lead WMS', tipo: 'int', origem: 'relatorio', padrao: false },
-    { k: 'leadBob', nome: 'Lead BOB', tipo: 'int', origem: 'relatorio', padrao: false },
-    { k: 'pagamento', nome: 'Pagamento', tipo: 'texto', origem: 'relatorio', padrao: false },
+    { k: 'leadBob', nome: 'Lead BOB', tipo: 'int', origem: 'relatorio', padrao: false, oculto: true },
+    { k: 'pagamento', nome: 'Pagamento', tipo: 'texto', origem: 'relatorio', padrao: false, oculto: true },
     { k: 'inicioCampanha', nome: 'Início camp.', tipo: 'data', origem: 'relatorio', padrao: false },
     { k: 'finalCampanha', nome: 'Final camp.', tipo: 'data', origem: 'relatorio', padrao: false },
     { k: 'finalizacao', nome: 'Finalização', tipo: 'data', origem: 'julia', padrao: false },
@@ -207,18 +208,18 @@
   };
 
   const TAGS_PADRAO = [
-    { id: 'tipo:now_crossdocking', grupo: 'tipo', codigo: 'now_crossdocking', nome: 'Cross', cor: '#0ea5e9' },
-    { id: 'tipo:now_pre_buy', grupo: 'tipo', codigo: 'now_pre_buy', nome: 'Pre-buy', cor: '#8b5cf6' },
-    { id: 'tipo:ticket_active', grupo: 'tipo', codigo: 'ticket_active', nome: 'Ticket', cor: '#f59e0b' },
-    { id: 'tipo:repurchase', grupo: 'tipo', codigo: 'repurchase', nome: 'Recompra', cor: '#10b981' },
-    { id: 'tipo:influencers', grupo: 'tipo', codigo: 'influencers', nome: 'Influenciadores', cor: '#ec4899' },
-    { id: 'tipo:store', grupo: 'tipo', codigo: 'store', nome: 'Loja', cor: '#64748b' },
-    { id: 'tipo:special_actions', grupo: 'tipo', codigo: 'special_actions', nome: 'Ações especiais', cor: '#ef4444' },
+    { id: 'tipo:now_crossdocking', grupo: 'tipo', codigo: 'now_crossdocking', nome: 'now_crossdocking', cor: '#0ea5e9' },
+    { id: 'tipo:now_pre_buy', grupo: 'tipo', codigo: 'now_pre_buy', nome: 'now_pre_buy', cor: '#8b5cf6' },
+    { id: 'tipo:ticket_active', grupo: 'tipo', codigo: 'ticket_active', nome: 'ticket_active', cor: '#f59e0b' },
+    { id: 'tipo:repurchase', grupo: 'tipo', codigo: 'repurchase', nome: 'repurchase', cor: '#10b981' },
+    { id: 'tipo:influencers', grupo: 'tipo', codigo: 'influencers', nome: 'influencers', cor: '#ec4899' },
+    { id: 'tipo:store', grupo: 'tipo', codigo: 'store', nome: 'STORE', cor: '#64748b' },
+    { id: 'tipo:special_actions', grupo: 'tipo', codigo: 'special_actions', nome: 'special_actions', cor: '#ef4444' },
     { id: 'tipo:saldo', grupo: 'tipo', codigo: 'saldo', nome: 'Saldo', cor: '#a16207' },
     { id: 'time:decor', grupo: 'time', codigo: 'decor', nome: 'Decor', cor: '#f97316' },
     { id: 'time:cozinha', grupo: 'time', codigo: 'cozinha', nome: 'Cozinha', cor: '#14b8a6' },
-    { id: 'time:textil', grupo: 'time', codigo: 'textil', nome: 'Têxtil', cor: '#a855f7' },
-    { id: 'time:moveis', grupo: 'time', codigo: 'moveis', nome: 'Móveis', cor: '#84cc16' }
+    { id: 'time:textil', grupo: 'time', codigo: 'textil', nome: 'Textil', cor: '#a855f7' },
+    { id: 'time:moveis', grupo: 'time', codigo: 'moveis', nome: 'Moveis', cor: '#84cc16' }
   ];
 
   const ACOES_PADRAO = ['Agendar', 'Agendado', 'Previsão', 'Enviar ativo', 'Ativo enviado', 'Enviar preventivo',
@@ -231,6 +232,7 @@
     p.extras = {};
     p.criadoEm = hojeISO();
     p.origem = 'manual';
+    p.remessa = '1';
     return p;
   }
 
@@ -239,6 +241,7 @@
     return Math.max(0, q - e);
   }
   function temSaldo(p) { return (Number(p.qtdEntregue) || 0) > 0 && saldo(p) > 0; }
+  function remessaDe(p) { return String(p.remessa || '') === '2' ? '2' : '1'; }
 
   // ---------- Status (calculado, nunca digitado) ----------
   // finalizado | atrasado | vence (hoje..hoje+antecedencia) | andamento
@@ -353,6 +356,7 @@
       if (f.tipo && p.tipo !== f.tipo) return false;
       if (f.time && p.time !== f.time) return false;
       if (f.transportadora && (ctx.transpDoFornecedor ? ctx.transpDoFornecedor(p.fornecedor) : '') !== f.transportadora) return false;
+      if (f.remessa && f.remessa !== 'todas' && remessaDe(p) !== String(f.remessa)) return false;
       if (f.soSaldos && !temSaldo(p)) return false;
       if (busca) {
         const alvo = norm([p.po, p.fornecedor, p.obs, p.acao, p.campanha, p.armazem].join(' '));
@@ -421,7 +425,7 @@
     const ant = cfg.antecedencia == null ? 2 : cfg.antecedencia;
     const r = resumo(pedidos, hoje, ant);
     const nomes = cfg.statusNomes || CONFIG_PADRAO.statusNomes;
-    const lin = p => '  PO ' + p.po + ' · ' + p.fornecedor + ' · limite ' + fmtDataCurta(p.limite) +
+    const lin = p => '  PO ' + p.po + (remessaDe(p) === '2' ? ' (2ª remessa, saldo ' + saldo(p) + ')' : '') + ' · ' + p.fornecedor + ' · limite ' + fmtDataCurta(p.limite) +
       (p.acao ? ' · ' + p.acao + (p.dataAcao ? ' ' + fmtDataCurta(p.dataAcao) : '') : '') + (p.obs ? ' · ' + p.obs : '');
     const assunto = 'Pedidos · ' + diaSemana(hoje) + ' ' + fmtDataCurta(hoje) + ' · ' + r.atrasados.length + ' ' + nomes.atrasado.toLowerCase() +
       (r.atrasados.length === 1 ? '' : 's') + ' · ' + r.vencem.length + ' vencem em até ' + ant + ' dias · ' + r.acoesHoje.length + ' ações hoje';
@@ -445,6 +449,7 @@
       linhas.push(csvLinha(colunas.map(k => {
         if (k === 'status') return nomes[statusDe(p, hoje, ctx && ctx.antecedencia)];
         if (k === 'saldo') return saldo(p);
+        if (k === 'remessa') return remessaDe(p) === '2' ? '2ª remessa' : '1ª remessa';
         if (k.startsWith('x:')) return (p.extras || {})[k.slice(2)] || '';
         const c = CAMPO[k]; const v = p[k];
         if (!c) return v == null ? '' : v;
@@ -453,7 +458,7 @@
         return v == null ? '' : v;
       })));
     });
-    return '﻿' + linhas.join('\r\n');
+    return '\uFEFF' + linhas.join('\r\n');
   }
 
   // ---------- Fornecedores ----------
@@ -473,7 +478,7 @@
     hojeISO, parseData, validaISO, fmtData, fmtDataCurta, diaSemana, addDias, addDiasUteis, diffDias,
     parseNumBR, fmtMoeda, fmtInt, fmtPct, detectaSeparador, parseCSV, csvLinha, norm, normChave,
     CAMPOS, CAMPO, MAPEAMENTO_PADRAO, CONFIG_PADRAO, TAGS_PADRAO, ACOES_PADRAO,
-    pedidoVazio, saldo, temSaldo, statusDe, aberto, casarCabecalhos, linhaParaPedido, mesclarImportacao,
+    pedidoVazio, saldo, temSaldo, remessaDe, statusDe, aberto, casarCabecalhos, linhaParaPedido, mesclarImportacao,
     noPeriodo, filtrar, ordenar, resumo, agrupar, textoResumo, exportarCSV, acharFornecedor, id
   };
 });

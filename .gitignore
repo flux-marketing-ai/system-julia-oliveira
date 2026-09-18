@@ -1,0 +1,7 @@
+# dados reais nunca entram no repositório
+*.csv
+*.xlsx
+*.pdf
+dados/
+.env
+.DS_Store

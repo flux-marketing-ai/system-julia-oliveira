@@ -1,7 +1,7 @@
 # Especificação v1 · Sistema de acompanhamento de pedidos (PO)
 
-Status: **rascunho para validação** (Victor + Julia). Nada aqui foi construído ainda.
-Data: 18/09/2026
+Status: **validada pelo Victor em 18/09/2026, em construção.** Perguntas pra Julia seguem abertas (seção 10); o que ela responder ajusta a v1.
+Decisões do Victor estão na seção 13.
 
 ---
 
@@ -232,10 +232,11 @@ Backup: histórico de versões do Google Sheets (nativo) + botão "Exportar tudo
 
 ## 9. Tecnologia
 
-- **Front:** um arquivo `index.html` (HTML + CSS + JS puro, sem framework, sem build). Roda em qualquer navegador.
+- **Front:** `index.html` + `app.js` + `style.css` + `core.js` (HTML + CSS + JS puro, sem framework, sem build). Roda em qualquer navegador. O `core.js` (regras: datas úteis, status, importação, texto do e-mail) é o mesmo arquivo usado no Apps Script, então tela e e-mail nunca discordam.
 - **Hospedagem:** GitHub Pages deste repositório. Atualização = commit.
 - **Dados:** Google Sheets via Apps Script (web app). Cache local no navegador pra abrir rápido e funcionar sem internet por alguns minutos.
 - **Avisos:** Apps Script, gatilho diário.
+- **Testes:** `tests/` (regras puras, Apps Script com planilha simulada, tela real em Chrome headless).
 - Custo: zero.
 
 ---
@@ -274,3 +275,37 @@ Backup: histórico de versões do Google Sheets (nativo) + botão "Exportar tudo
 3. Construção da v1 (esqueleto já pode começar com as colunas confirmadas).
 4. Teste com o relatório real de uma segunda ou quinta.
 5. Ela usa uma semana em paralelo com a planilha; ajustes; desliga a planilha.
+
+---
+
+## 13. Decisões do Victor (18/09/2026)
+
+Validação item a item. O que mudou em relação ao rascunho:
+
+**Rotina e edição**
+- Frequência dos avisos configurável no app: dias da semana, horário, antecedência, e-mail(s) de destino.
+- Envio automático não exige nada externo: o Apps Script roda no Google e envia pelo Gmail da própria conta, com gatilho de horário. Limite de 100 e-mails/dia na conta gratuita, ela usa 1.
+- Edição salva sozinha (sem botão salvar) e grava na planilha na hora. Indicador "salvo / pendente" na tela. Sem internet, guarda na fila e reenvia. **Nunca pode haver divergência entre app e planilha**: a planilha é a fonte da verdade, o navegador é cache.
+- Processo de edição o mais curto possível: finalizar = 1 clique na linha. Sem confirmação, com "reabrir" se errar.
+
+**Dash**
+- 4 números grandes + percentuais macro (ex.: % atrasados sobre abertos, % finalizados no período).
+- Lista "Hoje" vira bloco lateral discreto, estilo lista de tarefas (marcar como feito).
+- Gráficos com seletor de métrica (pedidos / peças / valor) e de recorte (abertos / atrasados / todos).
+- **Filtro de período global**: escolhido uma vez, vale em todas as abas e não reseta ao trocar de aba (fica salvo no navegador).
+
+**Tabela**
+- Se o sistema de compras mudar nome ou quantidade de colunas do relatório, a importação detecta a coluna desconhecida e **oferece adicionar como coluna nova** (ela aceita ou ignora). Sem chamar ninguém.
+- Ligar/desligar coluna: chips na própria aba, um clique.
+- Filtros com visual neutro (cinza). Cor só nas tags dentro da célula, pra não virar confete.
+- Saldo na mesma linha (Qtd entregue / Saldo): aprovado pra testar.
+- Página 2 da planilha tem dado bugado; usar só o que é legível como base.
+
+**Regras**
+- "Vence hoje" = em andamento, destacado em amarelo. Julia confirma depois.
+- LGPD: sistema de uso exclusivo da Julia, planilha privada. Sem bloqueio.
+
+**Próximos passos**
+- Construir agora, ajustar conforme as respostas da Julia.
+- Teste com relatório real: Julia ou o próprio Victor.
+- Perguntar à Julia se precisa importar histórico a partir de alguma data (a planilha atual tem 505 linhas na página 1).

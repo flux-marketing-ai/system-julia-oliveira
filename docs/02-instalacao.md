@@ -1,0 +1,91 @@
+# Instalação · passo a passo
+
+Leva uns 15 minutos, uma vez só. Precisa de uma conta Google (a que vai receber os e-mails).
+Nada aqui exige programar: é copiar, colar e clicar.
+
+O sistema tem duas partes:
+- **O app** (o link que abre no navegador). Já está no ar: https://flux-marketing-ai.github.io/system-julia-oliveira/
+- **A planilha** (onde os dados ficam guardados, na sua conta Google). É o que vamos criar agora.
+
+---
+
+## Parte 1 · Criar a planilha
+
+1. Entre em https://sheets.new com a sua conta Google. Abre uma planilha em branco.
+2. Dê um nome pra ela (canto superior esquerdo). Ex.: `Pedidos - dados`.
+3. **Não compartilhe** essa planilha com ninguém e não use "Publicar na web". Ela é só sua.
+
+## Parte 2 · Colar o script
+
+4. No menu da planilha: **Extensões → Apps Script**. Abre uma aba nova com um editor.
+5. Na esquerda, tem um arquivo chamado `Código.gs`. Apague tudo que está nele e cole o conteúdo do arquivo
+   [`apps-script/Code.gs`](../apps-script/Code.gs) (abra o link, clique em "Raw", selecione tudo, copie).
+6. Ainda na esquerda, clique no **+** ao lado de "Arquivos" → **Script**. Dê o nome `core` (vira `core.gs`).
+   Apague o que vier dentro e cole o conteúdo de [`core.js`](../core.js) (mesmo processo: Raw, selecionar tudo, copiar).
+7. Clique no ícone de **salvar** (disquete) ou Ctrl+S.
+8. Configurar o fuso horário: clique na **engrenagem** (Configurações do projeto) na esquerda →
+   marque "Mostrar o arquivo de manifesto appsscript.json" → volte no Editor, abra `appsscript.json`
+   e confira que tem `"timeZone": "America/Sao_Paulo"`. Se estiver outro, troque. Salve.
+
+## Parte 3 · Rodar a instalação (uma vez)
+
+9. No topo do editor, ao lado de "Depurar", tem uma lista de funções. Escolha **`setup`** e clique em **Executar**.
+10. O Google vai pedir autorização. Clique em **Revisar permissões** → escolha sua conta → vai aparecer
+    "O Google não verificou este app" → clique em **Avançado** → **Acessar ... (não seguro)** → **Permitir**.
+    Isso é normal: o script é seu, dentro da sua conta. Ele pede permissão pra ler a planilha e enviar e-mail pelo seu Gmail.
+11. Ao terminar, volte na planilha. Vão existir abas novas: `pedidos`, `fornecedores`, `transportadoras`, `tags`, `config`, `log`.
+    Na aba **`config`**, na linha `chaveAcesso`, está a sua **chave**. Copie ela (vai usar no passo 15).
+
+## Parte 4 · Publicar o script como "app da web"
+
+12. De volta no editor do Apps Script: botão azul **Implantar → Nova implantação**.
+13. Clique na engrenagem ao lado de "Selecionar tipo" → **App da Web**. Preencha:
+    - Descrição: `pedidos`
+    - Executar como: **Eu**
+    - Quem pode acessar: **Qualquer pessoa**
+      (é assim que o app consegue falar com a planilha; ninguém entra sem a chave do passo 11)
+14. **Implantar**. Copie o **URL do app da Web** (termina em `/exec`).
+
+## Parte 5 · Ligar o app na planilha
+
+15. Abra o app: https://flux-marketing-ai.github.io/system-julia-oliveira/ → aba **Configurações** → **Conexão com a planilha**.
+    - Link do Apps Script: cole o URL do passo 14.
+    - Chave de acesso: cole a chave do passo 11.
+    - Link deste app: `https://flux-marketing-ai.github.io/system-julia-oliveira/`
+16. **Testar e sincronizar**. Deve aparecer "Conectado e sincronizado" e, no canto superior direito, **Salvo** em verde.
+17. Salve o link do app nos favoritos (e na tela inicial do celular, se quiser).
+
+## Parte 6 · Avisos por e-mail
+
+18. Ainda em Configurações → **Avisos por e-mail**: coloque seu e-mail, o horário, os dias da semana e a antecedência.
+19. Clique em **Enviar e-mail de teste agora**. Se chegar, está pronto. A partir daí o e-mail sai sozinho todo dia, no horário, mesmo com o app fechado e o computador desligado (roda no Google).
+
+---
+
+## Uso no dia a dia
+
+- **Segunda e quinta:** exporte o relatório do sistema em CSV → aba Pedidos → **Importar relatório** → arraste o arquivo → Confirmar.
+  Pedido que já existe não é duplicado, e o que você escreveu (observação, ação, datas) nunca é apagado pela importação.
+- **Todo dia:** o e-mail chega; a aba Dash mostra o mesmo em tela, com a lista "Hoje" pra ir marcando.
+- **Editar:** clique direto na célula (observação, próxima ação, data da ação, entregue). Salva sozinho. "Salvo" em verde no canto = gravou na planilha.
+- **Finalizar:** botão ✓ na linha. Some da lista padrão (filtro "Abertos"), fica no histórico (filtro "Finalizados"). Errou? "Reabrir".
+- **Entrega parcial:** ligue a coluna "Entregue" (botão Colunas), digite o que chegou. O saldo aparece na mesma linha com a tag "Saldo". Filtro "Só saldos" mostra só esses.
+- **Fornecedor novo no relatório:** entra sozinho em Configurações → Fornecedores, sem cor. Complete transportadora, dia de entrega e prazo de NF quando quiser. Isso aparece ao passar o mouse no nome dele na tabela.
+- **Tag nova no relatório:** entra sozinha em Configurações → Tags de tipo, com o código. Dê nome e cor.
+- **O relatório mudou de formato:** na importação o app avisa "coluna nova" e pergunta se adiciona ou ignora. Se uma coluna importante sumiu ou mudou de nome, ele pede pra você apontar qual é. Fica salvo.
+
+## Se algo der errado
+
+| Sintoma | O que fazer |
+|---|---|
+| Canto direito mostra **Sem planilha** | Configurações → Conexão: falta link ou chave. |
+| **Erro ao gravar** / **Erro ao ler** | Passe o mouse em cima pra ver a mensagem. "Chave inválida" = chave errada. Erro de rede = sem internet, o app guarda e reenvia sozinho. |
+| **N pendentes** em amarelo por muito tempo | As alterações estão guardadas no navegador esperando internet. Não feche o navegador limpando dados. Assim que conectar, vai. |
+| Mudei o script e parou | Depois de editar o código, precisa **Implantar → Gerenciar implantações → editar (lápis) → Versão: Nova → Implantar**. O link continua o mesmo. |
+| E-mail não chega | Configurações → Avisos: está ligado? dia da semana marcado? Teste com "Enviar e-mail de teste". Veja a aba `log` na planilha. Cheque o spam na primeira vez. |
+| Quero começar do zero no navegador | Configurações → Dados → Limpar cache. Os dados continuam na planilha. |
+
+## Segurança, em uma linha
+
+O código é público (GitHub), os dados não: ficam na sua planilha privada. Quem não tem a chave não lê nem grava nada.
+A chave fica só no seu navegador. Se quiser trocar a chave, no editor do Apps Script: Configurações do projeto → Propriedades do script → `CHAVE`.

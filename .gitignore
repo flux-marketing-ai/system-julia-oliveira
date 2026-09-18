@@ -1,5 +1,6 @@
 # dados reais nunca entram no repositório
 *.csv
+!amostras/*.csv
 *.xlsx
 *.pdf
 dados/

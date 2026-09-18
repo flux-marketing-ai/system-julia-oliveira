@@ -1,0 +1,6 @@
+"Inicio Campanha";"Final Campanha";"Tipo PO";"Campanha ID";"Campanha";"PO";"Armazem";"Fornecedor";"Time";"Envio PO";"Qtd Pecas";"Valor PO";"Forma Pagamento";"Lead Time WMS";"Delivery Time";"Lead Time BOB"
+"15/09/2026 00:00";"30/09/2026 00:00";"now_crossdocking";"9001";"Semana da Casa";"900001";"CD Barueri";"FORNECEDOR EXEMPLO ALFA LTDA";"Decor";"16/09/2026 10:32";"120";"8.450,00";"30/60/90";"15";"07/10/2026 00:00";"20"
+"15/09/2026 00:00";"30/09/2026 00:00";"ticket_active";"9001";"Semana da Casa";"900002";"CD Barueri";"TECIDOS BETA S.A.";"Textil";"16/09/2026 11:05";"40";"1.234,56";"105";"10";"30/09/2026 00:00";"15"
+"01/09/2026 00:00";"30/09/2026 00:00";"now_pre_buy";"9002";"Cozinha em Dia";"900003";"CD Extrema";"PANELAS GAMA EIRELI";"Cozinha";"14/09/2026 09:00";"9";"980,10";"30";"3";"17/09/2026 00:00";"7"
+"01/09/2026 00:00";"30/09/2026 00:00";"repurchase";"9002";"Cozinha em Dia";"900004";"CD Extrema";"MOVEIS DELTA LTDA - 000300";"Moveis";"10/09/2026 15:40";"12";"15.000,00";"30/60";"5";"17/09/2026 00:00";"12"
+"01/09/2026 00:00";"30/09/2026 00:00";"influencers";"9003";"Influ Setembro";"900005";"CD Barueri";"ARTESANATO EPSILON ME";"Decor";"18/09/2026 08:00";"200";"3.300,00";"105";"2";"22/09/2026 00:00";"5"

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Pedidos</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231f2937'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif'>P</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topo">
+  <div class="topo-esq">
+    <span class="logo">Pedidos</span>
+    <nav class="abas" role="tablist">
+      <button class="aba ativa" data-aba="dash">Dash</button>
+      <button class="aba" data-aba="pedidos">Pedidos</button>
+      <button class="aba" data-aba="config">Configurações</button>
+    </nav>
+  </div>
+  <div class="topo-dir">
+    <div class="periodo" title="Filtro de período (vale em todas as abas)">
+      <select id="periodo-preset">
+        <option value="tudo">Todo o período</option>
+        <option value="semana">Esta semana</option>
+        <option value="mes">Este mês</option>
+        <option value="30">Próximos 30 dias</option>
+        <option value="custom">Personalizado</option>
+      </select>
+      <span id="periodo-custom" class="oculto">
+        <input type="date" id="periodo-de"> <span class="mudo">até</span> <input type="date" id="periodo-ate">
+      </span>
+    </div>
+    <span id="sync" class="sync" title="Estado da gravação na planilha">—</span>
+  </div>
+</header>
+
+<main>
+  <!-- DASH -->
+  <section id="aba-dash" class="painel">
+    <div class="kpis" id="kpis"></div>
+    <div class="dash-grid">
+      <div class="dash-principal">
+        <div class="card">
+          <div class="card-cab">
+            <h3>Pedidos abertos por fornecedor</h3>
+            <div class="controles">
+              <select id="dash-metrica">
+                <option value="pedidos">Pedidos</option>
+                <option value="pecas">Peças (saldo)</option>
+                <option value="valor">Valor</option>
+              </select>
+              <select id="dash-recorte">
+                <option value="abertos">Abertos</option>
+                <option value="atrasado">Atrasados</option>
+                <option value="vence">Vencem em breve</option>
+                <option value="todos">Todos</option>
+              </select>
+            </div>
+          </div>
+          <div id="graf-fornecedor" class="barras"></div>
+        </div>
+        <div class="card">
+          <div class="card-cab"><h3>Por time</h3></div>
+          <div id="graf-time" class="barras"></div>
+        </div>
+        <div class="card">
+          <div class="card-cab"><h3>Próximos 7 dias</h3><span class="mudo" id="prox7-total"></span></div>
+          <div id="prox7" class="lista-datas"></div>
+        </div>
+      </div>
+      <aside class="card tarefas">
+        <div class="card-cab"><h3>Hoje</h3><span class="mudo" id="hoje-total"></span></div>
+        <ul id="tarefas-hoje" class="lista-tarefas"></ul>
+      </aside>
+    </div>
+  </section>
+
+  <!-- PEDIDOS -->
+  <section id="aba-pedidos" class="painel oculto">
+    <div class="barra">
+      <input type="search" id="busca" placeholder="Buscar PO, fornecedor, observação…" autocomplete="off">
+      <select id="f-status">
+        <option value="abertos">Abertos</option>
+        <option value="atrasado">Atrasados</option>
+        <option value="vence">Vencem em breve</option>
+        <option value="andamento">Em andamento</option>
+        <option value="finalizado">Finalizados</option>
+        <option value="todos">Todos</option>
+      </select>
+      <select id="f-fornecedor"><option value="">Fornecedor</option></select>
+      <select id="f-tipo"><option value="">Tipo</option></select>
+      <select id="f-time"><option value="">Time</option></select>
+      <select id="f-transp"><option value="">Transportadora</option></select>
+      <label class="check"><input type="checkbox" id="f-saldos"> Só saldos</label>
+      <button class="btn-leve" id="btn-limpar-filtros" title="Limpar filtros">Limpar</button>
+      <span class="espaco"></span>
+      <div class="menu-colunas">
+        <button class="btn-leve" id="btn-colunas">Colunas</button>
+        <div id="pop-colunas" class="popover oculto"></div>
+      </div>
+      <button class="btn-leve" id="btn-exportar">Exportar CSV</button>
+      <button class="btn-leve" id="btn-novo">Novo pedido</button>
+      <button class="btn" id="btn-importar">Importar relatório</button>
+    </div>
+    <div class="tabela-wrap">
+      <table id="tabela" class="tabela">
+        <thead><tr id="tabela-cab"></tr></thead>
+        <tbody id="tabela-corpo"></tbody>
+      </table>
+      <div id="tabela-vazio" class="vazio oculto">Nenhum pedido com esses filtros.</div>
+    </div>
+    <div class="rodape-tabela"><span id="tabela-total"></span></div>
+  </section>
+
+  <!-- CONFIGURAÇÕES -->
+  <section id="aba-config" class="painel oculto">
+    <div class="config-grid">
+      <nav class="config-nav">
+        <a href="#cfg-conexao">Conexão</a>
+        <a href="#cfg-avisos">Avisos por e-mail</a>
+        <a href="#cfg-tags">Tags de tipo</a>
+        <a href="#cfg-times">Times</a>
+        <a href="#cfg-status">Status</a>
+        <a href="#cfg-acoes">Ações rápidas</a>
+        <a href="#cfg-fornecedores">Fornecedores</a>
+        <a href="#cfg-transportadoras">Transportadoras</a>
+        <a href="#cfg-colunas">Colunas e relatório</a>
+        <a href="#cfg-dados">Dados</a>
+      </nav>
+      <div class="config-corpo">
+
+        <div class="card" id="cfg-conexao">
+          <h3>Conexão com a planilha</h3>
+          <p class="mudo">Cole aqui o link do Apps Script e a chave de acesso. Ficam só neste navegador. Guia: <code>docs/02-instalacao.md</code>.</p>
+          <div class="campo"><label>Link do Apps Script (termina em /exec)</label><input type="url" id="c-apiUrl" placeholder="https://script.google.com/macros/s/…/exec"></div>
+          <div class="campo"><label>Chave de acesso</label><input type="password" id="c-chave" autocomplete="off"></div>
+          <div class="campo"><label>Link deste app (vai no e-mail)</label><input type="url" id="c-linkApp"></div>
+          <div class="acoes-linha">
+            <button class="btn" id="btn-testar-conexao">Testar e sincronizar</button>
+            <span id="conexao-msg" class="mudo"></span>
+          </div>
+        </div>
+
+        <div class="card" id="cfg-avisos">
+          <h3>Avisos por e-mail</h3>
+          <label class="check"><input type="checkbox" id="c-avisosAtivo"> Enviar resumo por e-mail</label>
+          <div class="campo"><label>E-mail(s) de destino (separe por vírgula)</label><input type="text" id="c-emailDestino" placeholder="nome@empresa.com"></div>
+          <div class="linha-campos">
+            <div class="campo"><label>Horário</label>
+              <select id="c-hora"></select></div>
+            <div class="campo"><label>Avisar com antecedência de</label>
+              <select id="c-antecedencia">
+                <option value="0">no dia</option><option value="1">1 dia</option><option value="2">2 dias</option>
+                <option value="3">3 dias</option><option value="5">5 dias</option><option value="7">7 dias</option>
+              </select></div>
+          </div>
+          <div class="campo"><label>Dias da semana</label>
+            <div class="dias" id="c-diasSemana">
+              <label><input type="checkbox" value="1"> seg</label><label><input type="checkbox" value="2"> ter</label>
+              <label><input type="checkbox" value="3"> qua</label><label><input type="checkbox" value="4"> qui</label>
+              <label><input type="checkbox" value="5"> sex</label><label><input type="checkbox" value="6"> sáb</label>
+              <label><input type="checkbox" value="0"> dom</label>
+            </div></div>
+          <label class="check"><input type="checkbox" id="c-enviarSeVazio"> Mandar e-mail mesmo quando não há nada ("tudo em dia")</label>
+          <div class="acoes-linha">
+            <button class="btn-leve" id="btn-previa-email">Ver prévia do e-mail de hoje</button>
+            <button class="btn-leve" id="btn-teste-email">Enviar e-mail de teste agora</button>
+            <span id="email-msg" class="mudo"></span>
+          </div>
+          <pre id="previa-email" class="previa oculto"></pre>
+        </div>
+
+        <div class="card" id="cfg-tags">
+          <h3>Tags de tipo</h3>
+          <p class="mudo">O código vem do relatório (não muda). Nome e cor são seus. Código novo no relatório entra sozinho aqui.</p>
+          <div id="lista-tags-tipo" class="lista-edit"></div>
+          <button class="btn-leve" id="btn-add-tag-tipo">+ Tag</button>
+        </div>
+
+        <div class="card" id="cfg-times">
+          <h3>Times</h3>
+          <div id="lista-tags-time" class="lista-edit"></div>
+          <button class="btn-leve" id="btn-add-tag-time">+ Time</button>
+        </div>
+
+        <div class="card" id="cfg-status">
+          <h3>Status</h3>
+          <p class="mudo">A regra é fixa (calculada pela data). Você muda só o nome e a cor.</p>
+          <div id="lista-status" class="lista-edit"></div>
+        </div>
+
+        <div class="card" id="cfg-acoes">
+          <h3>Ações rápidas</h3>
+          <p class="mudo">A lista que aparece em "Próxima ação". Uma por linha.</p>
+          <textarea id="c-acoes" rows="8"></textarea>
+        </div>
+
+        <div class="card" id="cfg-fornecedores">
+          <h3>Fornecedores</h3>
+          <p class="mudo">Regra logística de cada um. Fornecedor novo no relatório entra sozinho, sem cor, pra você completar. "Nomes alternativos": outras grafias do mesmo fornecedor, separadas por |.</p>
+          <div class="acoes-linha">
+            <input type="search" id="busca-forn" placeholder="Buscar fornecedor…">
+            <button class="btn-leve" id="btn-add-forn">+ Fornecedor</button>
+            <button class="btn-leve" id="btn-colar-forn">Colar lista de nomes</button>
+          </div>
+          <div class="tabela-wrap"><table class="tabela tabela-cfg" id="tab-forn"></table></div>
+        </div>
+
+        <div class="card" id="cfg-transportadoras">
+          <h3>Transportadoras</h3>
+          <div id="lista-transp" class="lista-edit"></div>
+          <button class="btn-leve" id="btn-add-transp">+ Transportadora</button>
+        </div>
+
+        <div class="card" id="cfg-colunas">
+          <h3>Colunas e relatório</h3>
+          <p class="mudo">Se o sistema mudar o nome de uma coluna do relatório, ajuste aqui o nome que o app deve procurar.</p>
+          <div id="lista-mapeamento" class="lista-edit"></div>
+          <h4>Colunas extras (vindas do relatório)</h4>
+          <div id="lista-extras" class="lista-edit"></div>
+          <h4>Cabeçalhos ignorados</h4>
+          <div id="lista-ignorados" class="chips"></div>
+        </div>
+
+        <div class="card" id="cfg-dados">
+          <h3>Dados</h3>
+          <div class="acoes-linha">
+            <button class="btn-leve" id="btn-exportar-tudo">Exportar todos os pedidos (CSV)</button>
+            <button class="btn-leve" id="btn-recarregar">Recarregar da planilha</button>
+            <button class="btn-perigo" id="btn-limpar-cache">Limpar cache do navegador</button>
+          </div>
+          <p class="mudo" id="dados-info"></p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Modal importação -->
+<dialog id="dlg-importar" class="modal">
+  <form method="dialog">
+    <h3>Importar relatório</h3>
+    <div id="imp-passo-arquivo">
+      <div class="drop" id="drop">
+        <p>Arraste o arquivo CSV aqui ou <label class="link">escolha o arquivo<input type="file" id="imp-arquivo" accept=".csv,.txt,text/csv" hidden></label></p>
+        <p class="mudo">Aceita ; ou , como separador. As colunas são reconhecidas pelo nome.</p>
+      </div>
+    </div>
+    <div id="imp-passo-colunas" class="oculto"></div>
+    <div id="imp-passo-previa" class="oculto"></div>
+    <div class="modal-rodape">
+      <button class="btn-leve" value="cancel">Cancelar</button>
+      <button class="btn" id="imp-confirmar" type="button" disabled>Confirmar importação</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Modal pedido (novo / editar completo) -->
+<dialog id="dlg-pedido" class="modal">
+  <form method="dialog" id="form-pedido">
+    <h3 id="dlg-pedido-titulo">Novo pedido</h3>
+    <div class="linha-campos">
+      <div class="campo"><label>PO *</label><input name="po" required></div>
+      <div class="campo"><label>Fornecedor *</label><input name="fornecedor" list="dl-fornecedores" required></div>
+    </div>
+    <div class="linha-campos">
+      <div class="campo"><label>Tipo</label><select name="tipo"></select></div>
+      <div class="campo"><label>Time</label><select name="time"></select></div>
+    </div>
+    <div class="linha-campos">
+      <div class="campo"><label>Envio</label><input type="date" name="envio"></div>
+      <div class="campo"><label>Lead time (dias úteis)</label><input type="number" name="leadWms" min="0"></div>
+      <div class="campo"><label>Data limite *</label><input type="date" name="limite" required></div>
+    </div>
+    <div class="linha-campos">
+      <div class="campo"><label>Quantidade</label><input type="number" name="qtd" min="0"></div>
+      <div class="campo"><label>Entregue</label><input type="number" name="qtdEntregue" min="0"></div>
+      <div class="campo"><label>Valor (R$)</label><input name="valor" placeholder="1.234,56"></div>
+    </div>
+    <div class="linha-campos">
+      <div class="campo"><label>Próxima ação</label><input name="acao" list="dl-acoes"></div>
+      <div class="campo"><label>Data da ação</label><input type="date" name="dataAcao"></div>
+    </div>
+    <div class="campo"><label>Observação</label><textarea name="obs" rows="2"></textarea></div>
+    <div class="linha-campos">
+      <div class="campo"><label>Armazém</label><input name="armazem"></div>
+      <div class="campo"><label>Campanha</label><input name="campanha"></div>
+      <div class="campo"><label>Finalização</label><input type="date" name="finalizacao"></div>
+    </div>
+    <div id="dlg-pedido-extras"></div>
+    <div class="modal-rodape">
+      <button class="btn-perigo oculto" type="button" id="btn-excluir-pedido">Excluir</button>
+      <span class="espaco"></span>
+      <button class="btn-leve" value="cancel" type="button" id="btn-cancelar-pedido">Cancelar</button>
+      <button class="btn" type="submit">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Modal colar fornecedores -->
+<dialog id="dlg-colar" class="modal">
+  <form method="dialog">
+    <h3>Colar lista de fornecedores</h3>
+    <p class="mudo">Um nome por linha. Nomes que já existem são ignorados.</p>
+    <textarea id="colar-texto" rows="10"></textarea>
+    <div class="modal-rodape">
+      <button class="btn-leve" value="cancel">Cancelar</button>
+      <button class="btn" id="colar-confirmar" type="button">Adicionar</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="dl-fornecedores"></datalist>
+<datalist id="dl-acoes"></datalist>
+<div id="toast" class="toast oculto"></div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

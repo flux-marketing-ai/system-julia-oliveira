@@ -278,6 +278,21 @@ async function json(url) { const r = await fetch(url); return r.json(); }
   await ev(`SJO.L.apiUrl = ''; SJO.L.chave = ''; 'ok'`);
   await ev(`(function(){ const i = document.querySelector('#tabela-corpo input[data-k="obs"][data-po="SRV1"]'); i.value = 'x'; i.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
 
+  // link de acesso: gera, decodifica e configura num navegador "limpo"
+  await ev(`SJO.L.apiUrl = 'https://script.google.com/macros/s/ABC/exec'; SJO.L.chave = 'chave-teste-ção'; 'ok'`);
+  const linkAcesso = await ev(`SJO.gerarLinkAcesso()`);
+  t('link de acesso tem #acesso=', /#acesso=[A-Za-z0-9_-]+$/.test(linkAcesso));
+  await ev(`localStorage.removeItem('sjo_local_v1'); 'ok'`);
+  await cmd('Page.navigate', { url: 'http://127.0.0.1:' + PORTA + '/index.html' + linkAcesso.slice(linkAcesso.indexOf('#')) });
+  await dorme(1000);
+  t('link configurou url e chave (com acento)', await ev(`SJO.L.apiUrl`) === 'https://script.google.com/macros/s/ABC/exec' && await ev(`SJO.L.chave`) === 'chave-teste-ção');
+  t('chave sumiu da barra de endereço', await ev(`location.hash`) === '' || await ev(`location.hash`) === '#dash');
+  t('chave guardada no navegador', /chave-teste/.test(await ev(`localStorage.getItem('sjo_local_v1')`)));
+  await cmd('Page.navigate', { url: 'http://127.0.0.1:' + PORTA + '/index.html#acesso=lixo' }); await dorme(800);
+  t('link inválido não derruba', await ev(`document.querySelector('.aba.ativa') !== null`) === true);
+  await ev(`SJO.L.apiUrl = ''; SJO.L.chave = ''; 'ok'`);
+  await ev(`(function(){ try { localStorage.setItem('sjo_local_v1', JSON.stringify({apiUrl:'', chave:''})); } catch(e){} return 'ok'; })()`);
+
   // persistência: recarrega a página
   await cmd('Page.navigate', { url: 'http://127.0.0.1:' + PORTA + '/index.html#pedidos' });
   await dorme(1000);

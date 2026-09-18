@@ -55,6 +55,17 @@ O sistema tem duas partes:
 16. **Testar e sincronizar**. Deve aparecer "Conectado e sincronizado" e, no canto superior direito, **Salvo** em verde.
 17. Salve o link do app nos favoritos (e na tela inicial do celular, se quiser).
 
+**Pra outra pessoa (ou outro aparelho) entrar sem digitar nada:** em Configurações → Conexão → **Gerar e copiar link de acesso**. Mande esse link por canal privado (WhatsApp direto, nunca grupo). Quem abre já entra conectado, e a chave some da barra de endereço na hora. Quem tem o link entra no sistema: não repasse.
+
+## Como funciona o acesso (não tem login)
+
+- Não existe usuário e senha. O que dá acesso é a **chave** (passo 11) junto com o link do Apps Script (passo 14). Os dois ficam guardados só no navegador de quem colou (ou abriu o link de acesso).
+- O app sem chave abre vazio e mostra "Sem planilha" no canto. Ninguém lê nem grava nada na planilha sem a chave: o script confere em toda leitura e gravação.
+- Não precisa ter conta Google nem acesso à planilha pra usar o app. A planilha é só o cofre dos dados.
+- Cada aparelho (PC, celular) precisa da chave uma vez: cole em Configurações ou abra o link de acesso nele.
+- Janela anônima não guarda a chave: fecha, perde.
+- **Pra cortar o acesso de alguém** (ou se o link vazou): no editor do Apps Script → Configurações do projeto → Propriedades do script → mude o valor de `CHAVE`. A chave antiga para de funcionar em todo lugar na hora; quem deve continuar usando recebe a nova (cole em Configurações ou gere um link de acesso novo).
+
 ## Parte 6 · Avisos por e-mail
 
 18. Ainda em Configurações → **Avisos por e-mail**: coloque seu e-mail, o horário, os dias da semana e a antecedência.
@@ -96,4 +107,4 @@ Pra sair de outra conta, essa conta precisa abrir o Apps Script da planilha, faz
 ## Segurança, em uma linha
 
 O código é público (GitHub), os dados não: ficam na sua planilha privada. Quem não tem a chave não lê nem grava nada.
-A chave fica só no seu navegador. Se quiser trocar a chave, no editor do Apps Script: Configurações do projeto → Propriedades do script → `CHAVE`.
+A chave fica só no seu navegador. Pra trocar (e derrubar quem tinha a antiga): editor do Apps Script → Configurações do projeto → Propriedades do script → `CHAVE`.

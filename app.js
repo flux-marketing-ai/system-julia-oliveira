@@ -384,6 +384,19 @@
   }
   function normalizarDP(inp) { const v = C.parseData(inp.value); if (inp.value.trim() && !v) { toast('Data inválida: use dd/mm/aaaa', true); inp.value = ''; } else inp.value = C.fmtData(v); }
 
+  // ---------------- Link de acesso (#acesso=…): configura link + chave e some da barra ----------------
+  const b64url = { enc: str => btoa(String.fromCharCode(...new TextEncoder().encode(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+    dec: b => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))) };
+  function gerarLinkAcesso() { return location.origin + location.pathname + '#acesso=' + b64url.enc(JSON.stringify({ u: L.apiUrl, k: L.chave })); }
+  function tratarLinkAcesso() {
+    const m = /[#&]acesso=([A-Za-z0-9_-]+)/.exec(location.hash); if (!m) return false;
+    try {
+      const j = JSON.parse(b64url.dec(m[1]));
+      if (j.u && j.k && /^https:\/\/script\.google\.com\//.test(j.u)) { L.apiUrl = j.u; L.chave = j.k; salvarLocal(); history.replaceState(null, '', location.pathname); return true; }
+    } catch (e) { }
+    toast('Link de acesso inválido', true); history.replaceState(null, '', location.pathname); return false;
+  }
+
   // ---------------- Abas ----------------
   function irPara(aba) {
     UI.aba = aba; salvarLocal();
@@ -770,7 +783,10 @@
   // ---------------- Eventos ----------------
   function ligarEventos() {
     $$('.aba').forEach(b => b.addEventListener('click', () => irPara(b.dataset.aba)));
-    window.addEventListener('hashchange', () => { const a = location.hash.slice(1); if (['dash', 'pedidos', 'config'].includes(a) && a !== UI.aba) irPara(a); });
+    window.addEventListener('hashchange', () => {
+      if (/[#&]acesso=/.test(location.hash)) { if (tratarLinkAcesso()) { toast('Acesso configurado. Lendo a planilha…'); atualizarSync(); irPara('dash'); sincronizar(true); } return; }
+      const a = location.hash.slice(1); if (['dash', 'pedidos', 'config'].includes(a) && a !== UI.aba) irPara(a);
+    });
 
     // menus (popovers): botão abre/fecha o irmão; clique fora fecha todos
     $$('.menu > button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const pop = b.parentNode.querySelector('.popover'); const abrir = pop.classList.contains('oculto'); fecharPopovers(); if (abrir) { pop.classList.remove('oculto'); if (pop.id === 'periodo-pop') { PC.pendente = false; renderPeriodo(); } } }));
@@ -893,6 +909,13 @@
       atualizarSync();
     });
     $('#c-linkApp').addEventListener('change', e => { S.config.linkApp = e.target.value.trim(); salvarConfig(); });
+    $('#btn-link-acesso').addEventListener('click', async () => {
+      L.apiUrl = $('#c-apiUrl').value.trim(); L.chave = $('#c-chave').value.trim(); salvarLocal();
+      const msg = $('#link-acesso-msg'), campo = $('#link-acesso');
+      if (!conectado()) { msg.textContent = 'Preencha link e chave primeiro.'; return; }
+      const link = gerarLinkAcesso(); campo.value = link; campo.classList.remove('oculto');
+      try { await navigator.clipboard.writeText(link); msg.textContent = 'Copiado. Mande por canal privado.'; } catch (e) { campo.select(); msg.textContent = 'Copie o link do campo.'; }
+    });
 
     // config: avisos
     const cfgCampo = (sel, k, tipo) => $(sel).addEventListener('change', e => {
@@ -1034,6 +1057,7 @@
 
   // ---------------- Boot ----------------
   carregar();
+  const viaLink = tratarLinkAcesso();
   ligarEventos();
   aplicarNome();
   renderPeriodo();
@@ -1042,6 +1066,7 @@
   const abaInicial = location.hash.slice(1);
   irPara(['dash', 'pedidos', 'config'].includes(abaInicial) ? abaInicial : (conectado() || S.pedidos.length ? UI.aba : 'config'));
   atualizarSync();
+  if (viaLink) { irPara('dash'); toast('Acesso configurado. Lendo a planilha…'); }
   if (conectado()) sincronizar(true);
-  window.SJO = { S, L, UI, SY, LIMIAR, PC, sincronizar, flush, renderAviso, exportarLista, definirPeriodo }; // pra depuração no console
+  window.SJO = { S, L, UI, SY, LIMIAR, PC, sincronizar, flush, renderAviso, exportarLista, definirPeriodo, gerarLinkAcesso }; // pra depuração no console
 })();

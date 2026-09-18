@@ -14,6 +14,7 @@
   let S = { pedidos: [], fornecedores: [], transportadoras: [], tags: [], config: {}, fila: [], versao: 0, ultimaSync: '' };
   let L = { apiUrl: '', chave: '' }; // só neste navegador
   let UI = { aba: 'dash', ordem: { col: 'limite', dir: 'asc' }, filtros: { status: 'abertos', remessa: '1' }, buscaForn: '' };
+  const SEL = new Set(); let ultimoSel = null; // seleção pra ações em massa (POs)
 
   function carregar() {
     try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) S = Object.assign(S, s); } catch (e) { }
@@ -547,7 +548,10 @@
     let lista = C.filtrar(S.pedidos, f, ctx());
     lista = C.ordenar(lista, UI.ordem.col, UI.ordem.dir, ctx());
     const cols = colunasVisiveis();
-    $('#tabela-cab').innerHTML = cols.map(k => '<th data-col="' + esc(k) + '">' + esc(nomeColuna(k)) + (UI.ordem.col === k ? '<span class="seta">' + (UI.ordem.dir === 'asc' ? '▲' : '▼') + '</span>' : '') + '</th>').join('') + '<th></th>';
+    const visiveis = new Set(lista.map(p => String(p.po)));
+    SEL.forEach(po => { if (!visiveis.has(po)) SEL.delete(po); });
+    const todosSel = lista.length > 0 && lista.every(p => SEL.has(String(p.po)));
+    $('#tabela-cab').innerHTML = '<th class="sel"><input type="checkbox" id="sel-todos" title="Selecionar todos os visíveis"' + (todosSel ? ' checked' : '') + '></th>' + cols.map(k => '<th data-col="' + esc(k) + '">' + esc(nomeColuna(k)) + (UI.ordem.col === k ? '<span class="seta">' + (UI.ordem.dir === 'asc' ? '▲' : '▼') + '</span>' : '') + '</th>').join('') + '<th></th>';
     const h = hoje(), ant = S.config.antecedencia;
     const cel = (p, k) => {
       const v = p[k];
@@ -577,13 +581,52 @@
       const tds = cols.map(k => { const c = cel(p, k); return c.startsWith('<td') ? c + '</td>' : '<td>' + c + '</td>'; }).join('');
       const btn = p.finalizacao ? '<button class="btn-mini" data-acao="reabrir" data-po="' + esc(p.po) + '">Reabrir</button>' : '<button class="btn-mini" data-acao="finalizar" data-po="' + esc(p.po) + '" title="Finalizar (data de hoje)">' + ico('check') + 'Finalizar</button>';
       const mover = C.remessaDe(p) === '2' ? '<button class="btn-mini" data-acao="remessa1" data-po="' + esc(p.po) + '" title="Voltar pra 1ª remessa">← 1ª</button>' : '<button class="btn-mini" data-acao="remessa2" data-po="' + esc(p.po) + '" title="Mover pra 2ª remessa (entrega parcial, item similar, BO)">→ 2ª</button>';
-      return '<tr class="st-' + st + '" data-po="' + esc(p.po) + '">' + tds + '<td class="acoes">' + btn + mover + '<button class="btn-mini" data-acao="editar" data-po="' + esc(p.po) + '" title="Editar tudo">' + ico('edit') + '</button></td></tr>';
+      const sel = SEL.has(String(p.po));
+      return '<tr class="st-' + st + (sel ? ' selecionada' : '') + '" data-po="' + esc(p.po) + '"><td class="sel"><input type="checkbox" data-sel="' + esc(p.po) + '"' + (sel ? ' checked' : '') + '></td>' + tds + '<td class="acoes">' + btn + mover + '<button class="btn-mini" data-acao="editar" data-po="' + esc(p.po) + '" title="Editar tudo">' + ico('edit') + '</button></td></tr>';
     });
     $('#tabela-corpo').innerHTML = linhas.join('');
     $('#tabela-vazio').classList.toggle('oculto', lista.length > 0);
     const valor = lista.reduce((s, p) => s + (Number(p.valor) || 0), 0);
     $('#tabela-total').textContent = lista.length + ' de ' + S.pedidos.length + ' pedidos · ' + C.fmtInt(lista.reduce((s, p) => s + C.saldo(p), 0)) + ' peças em aberto · ' + C.fmtMoeda(valor);
     renderPopColunas();
+    renderMassa();
+  }
+  function renderMassa() {
+    const n = SEL.size; const el = $('#massa');
+    el.classList.toggle('oculto', n === 0);
+    $('#massa-n').textContent = n + (n === 1 ? ' selecionado' : ' selecionados');
+  }
+  function selecionar(po, marcado, comShift) {
+    const lista = listaFiltrada().map(p => String(p.po));
+    if (comShift && ultimoSel && lista.includes(ultimoSel) && lista.includes(po)) {
+      const a = lista.indexOf(ultimoSel), b = lista.indexOf(po);
+      lista.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => marcado ? SEL.add(x) : SEL.delete(x));
+    } else if (marcado) SEL.add(po); else SEL.delete(po);
+    ultimoSel = po; renderPedidos();
+  }
+  function acaoEmMassa(tipo) {
+    const pos = Array.from(SEL); const ps = pos.map(pedidoPorPO).filter(Boolean); if (!ps.length) return;
+    const h = hoje(); let msg = '';
+    if (tipo === 'limpar') { SEL.clear(); renderPedidos(); return; }
+    if (tipo === 'xlsx') { exportarLista(C.ordenar(ps, UI.ordem.col, UI.ordem.dir, ctx()), 'pedidos-selecionados', 'xlsx'); return; }
+    if (tipo === 'excluir') {
+      if (!confirm('Excluir ' + ps.length + ' pedido(s)? Isso apaga da planilha também.')) return;
+      S.pedidos = S.pedidos.filter(p => !SEL.has(String(p.po)));
+      enfileirar({ acao: 'deletePedidos', pos }); enfileirar({ acao: 'log', entradas: [{ quando: new Date().toISOString(), tipo: 'excluir-massa', pos }] });
+      SEL.clear(); salvarLocal(); renderTudo(); toast(pos.length + ' pedidos excluídos'); return;
+    }
+    if (tipo === 'finalizar') { ps.forEach(p => { p.finalizacao = h; p.update = h; }); msg = ps.length + ' finalizados'; }
+    else if (tipo === 'reabrir') { ps.forEach(p => { p.finalizacao = ''; p.update = h; }); msg = ps.length + ' reabertos'; }
+    else if (tipo === 'remessa2' || tipo === 'remessa1') { const r = tipo === 'remessa2' ? '2' : '1'; ps.forEach(p => { p.remessa = r; p.update = h; }); msg = ps.length + ' → ' + r + 'ª remessa'; }
+    else if (tipo === 'acao') {
+      const acao = $('#massa-acao').value.trim(), data = C.parseData($('#massa-data').value);
+      if (!acao && !data) { toast('Preencha a ação e/ou a data', true); return; }
+      ps.forEach(p => { if (acao) p.acao = acao; if (data) p.dataAcao = data; p.update = h; });
+      if (acao && !S.config.acoes.includes(acao)) { S.config.acoes.push(acao); salvarConfig(); }
+      msg = 'Ação aplicada em ' + ps.length; $('#massa-acao').value = ''; $('#massa-data').value = '';
+    } else return;
+    gravarPedidos(ps, { tipo: 'massa-' + tipo, n: ps.length, pos });
+    SEL.clear(); renderTudo(); toast(msg);
   }
   function listaFiltrada() { return C.ordenar(C.filtrar(S.pedidos, Object.assign({}, UI.filtros, { periodo: periodoAtual() }), ctx()), UI.ordem.col, UI.ordem.dir, ctx()); }
   function renderPopColunas() {
@@ -857,6 +900,10 @@
       UI.ordem = { col, dir: UI.ordem.col === col && UI.ordem.dir === 'asc' ? 'desc' : 'asc' }; salvarLocal(); renderPedidos();
     });
     $('#tabela-corpo').addEventListener('change', e => { const t = e.target; if (t.dataset.k) editarCampo(t.dataset.po, t.dataset.k, t.value); });
+    $('#tabela-corpo').addEventListener('click', e => { const c = e.target.closest('input[data-sel]'); if (c) selecionar(c.dataset.sel, c.checked, e.shiftKey); });
+    $('#tabela-cab').addEventListener('change', e => { if (e.target.id === 'sel-todos') { const lista = listaFiltrada(); lista.forEach(p => e.target.checked ? SEL.add(String(p.po)) : SEL.delete(String(p.po))); renderPedidos(); } });
+    $('#massa').addEventListener('click', e => { const b = e.target.closest('button[data-massa]'); if (b) acaoEmMassa(b.dataset.massa); });
+    $('#massa-acao').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acaoEmMassa('acao'); } });
     $('#tabela-corpo').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.k) e.target.blur(); });
     $('#tabela-corpo').addEventListener('click', e => {
       const b = e.target.closest('button[data-acao]'); if (!b) return;
@@ -1068,5 +1115,5 @@
   atualizarSync();
   if (viaLink) { irPara('dash'); toast('Acesso configurado. Lendo a planilha…'); }
   if (conectado()) sincronizar(true);
-  window.SJO = { S, L, UI, SY, LIMIAR, PC, sincronizar, flush, renderAviso, exportarLista, definirPeriodo, gerarLinkAcesso }; // pra depuração no console
+  window.SJO = { S, L, UI, SY, LIMIAR, PC, SEL, sincronizar, flush, renderAviso, exportarLista, definirPeriodo, gerarLinkAcesso }; // pra depuração no console
 })();

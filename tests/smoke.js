@@ -175,6 +175,35 @@ async function json(url) { const r = await fetch(url); return r.json(); }
   t('limpar aparece com contagem', await ev(`document.querySelector('#btn-limpar-filtros').classList.contains('oculto')`) === false && await ev(`document.querySelector('#n-filtros').textContent`) === '1');
   await ev(`document.querySelector('#btn-limpar-filtros').click(); 'ok'`);
   t('limpar zera', await ev(`document.querySelector('#f-tipo').classList.contains('ativo')`) === false);
+  // ações em massa: seleção, selecionar todos, shift, finalizar, ação, excluir
+  t('barra de massa oculta sem seleção', await ev(`document.querySelector('#massa').classList.contains('oculto')`) === true);
+  await ev(`document.querySelector('#tabela-corpo input[data-sel="900001"]').click(); 'ok'`);
+  t('1 selecionado', await ev(`SJO.SEL.size`) === 1 && /1 selecionado/.test(await ev(`document.querySelector('#massa-n').textContent`)) && await ev(`document.querySelector('#massa').classList.contains('oculto')`) === false);
+  t('linha destacada', await ev(`document.querySelector('#tabela-corpo tr[data-po="900001"]').classList.contains('selecionada')`) === true);
+  await ev(`(function(){ const c = document.querySelector('#tabela-corpo input[data-sel="900004"]'); c.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })); return 'ok'; })()`);
+  t('shift seleciona faixa', await ev(`SJO.SEL.size`) === 4);
+  await ev(`document.querySelector('button[data-massa="limpar"]').click(); 'ok'`);
+  t('limpar seleção', await ev(`SJO.SEL.size`) === 0);
+  await ev(`(function(){ const c = document.querySelector('#sel-todos'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); return 'ok'; })()`);
+  t('selecionar todos', await ev(`SJO.SEL.size`) === 4);
+  await ev(`document.querySelector('#massa-acao').value = 'Agendar'; document.querySelector('#massa-data').value = Core.addDias(Core.hojeISO(), 3); document.querySelector('button[data-massa="acao"]').click(); 'ok'`);
+  t('ação em massa aplicada', await ev(`SJO.S.pedidos.filter(p => p.acao === 'Agendar' && p.dataAcao === Core.addDias(Core.hojeISO(), 3)).length`) === 4 && await ev(`SJO.SEL.size`) === 0);
+  await ev(`document.querySelector('#tabela-corpo input[data-sel="900001"]').click(); document.querySelector('#tabela-corpo input[data-sel="900005"]').click(); document.querySelector('button[data-massa="remessa2"]').click(); 'ok'`);
+  t('remessa em massa', await ev(`SJO.S.pedidos.filter(p => p.remessa === '2').length`) === 2 && await ev(`document.querySelector('[data-cont="2"]').textContent`) === '2');
+  await ev(`document.querySelector('#f-remessa button[data-v="2"]').click(); (function(){ const c = document.querySelector('#sel-todos'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); return 'ok'; })()`);
+  await ev(`document.querySelector('button[data-massa="remessa1"]').click(); document.querySelector('#f-remessa button[data-v="1"]').click(); 'ok'`);
+  t('volta em massa', await ev(`SJO.S.pedidos.filter(p => p.remessa === '2').length`) === 0);
+  await ev(`document.querySelector('#tabela-corpo input[data-sel="900001"]').click(); document.querySelector('#tabela-corpo input[data-sel="900002"]').click(); document.querySelector('button[data-massa="finalizar"]').click(); 'ok'`);
+  t('finalizar em massa', await ev(`SJO.S.pedidos.filter(p => p.finalizacao).length`) === 3 && await ev(`document.querySelectorAll('#tabela-corpo tr').length`) === 2);
+  await ev(`(function(){ const s = document.querySelector('#f-status'); s.value = 'finalizado'; s.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
+  await ev(`document.querySelector('#tabela-corpo input[data-sel="900001"]').click(); document.querySelector('#tabela-corpo input[data-sel="900002"]').click(); document.querySelector('button[data-massa="reabrir"]').click(); 'ok'`);
+  t('reabrir em massa', await ev(`SJO.S.pedidos.filter(p => p.finalizacao).length`) === 1);
+  await ev(`document.querySelector('#btn-limpar-filtros').click(); 'ok'`);
+  await ev(`window.confirm = () => true; SJO.S.pedidos.push(Object.assign(Core.pedidoVazio(), { po: 'X9', fornecedor: 'TMP', limite: Core.hojeISO() })); 'ok'`);
+  await ev(`document.querySelector('.aba[data-aba="pedidos"]').click(); document.querySelector('#tabela-corpo input[data-sel="X9"]').click(); document.querySelector('button[data-massa="excluir"]').click(); 'ok'`);
+  t('excluir em massa', await ev(`SJO.S.pedidos.some(p => p.po === 'X9')`) === false && await ev(`SJO.S.fila.some(op => op.acao === 'deletePedidos' && op.pos.includes('X9'))`) === true);
+  await ev(`SJO.S.pedidos.forEach(p => { p.acao = ''; p.dataAcao = ''; }); SJO.S.pedidos.find(p => p.po === '900002').acao = 'Agendar'; SJO.S.pedidos.find(p => p.po === '900002').dataAcao = Core.hojeISO(); 'ok'`);
+
   // exportar: menu com Excel e CSV (intercepta o download)
   await ev(`window.__blobs = []; URL.createObjectURL = b => { window.__blobs.push({ size: b.size, type: b.type }); return 'blob:x'; }; 'ok'`);
   await ev(`document.querySelector('#btn-exportar').click(); 'ok'`);

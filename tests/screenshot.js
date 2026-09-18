@@ -45,6 +45,8 @@ const dorme = ms => new Promise(r => setTimeout(r, ms));
     S.config.emailDestino = 'julia@exemplo.com'; S.config.linkApp = 'https://flux-marketing-ai.github.io/system-julia-oliveira/';
     return 'ok'; })()`);
   await ev(`document.querySelector('.aba[data-aba="pedidos"]').click(); 'ok'`); await dorme(200); await shot('pedidos.png');
+  await ev(`document.querySelector('#tabela-corpo input[data-sel="900002"]').click(); document.querySelector('#tabela-corpo input[data-sel="900005"]').click(); 'ok'`); await dorme(200); await shot('pedidos-massa.png');
+  await ev(`document.querySelector('button[data-massa="limpar"]').click(); 'ok'`);
   await ev(`document.querySelector('.aba[data-aba="dash"]').click(); 'ok'`); await dorme(200); await shot('dash.png');
   await ev(`document.querySelector('.kpi[data-filtro="vence"]').click(); 'ok'`); await dorme(200); await shot('dash-vencem.png');
   await ev(`document.querySelector('.kpi[data-filtro="vence"]').click(); document.querySelector('#periodo-btn').click(); 'ok'`); await dorme(200); await shot('periodo.png');

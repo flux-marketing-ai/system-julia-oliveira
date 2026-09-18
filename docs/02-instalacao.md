@@ -79,6 +79,7 @@ O sistema tem duas partes:
   Pedido que já existe não é duplicado, e o que você escreveu (observação, ação, datas) nunca é apagado pela importação.
 - **Todo dia:** o e-mail chega; a aba Dash mostra o mesmo em tela, com a lista "Hoje" pra ir marcando.
 - **Editar:** clique direto na célula (observação, próxima ação, data da ação, entregue). Salva sozinho. "Salvo" em verde no canto = gravou na planilha.
+- **Várias linhas de uma vez:** marque as caixinhas à esquerda (a do cabeçalho marca todas as visíveis; Shift + clique marca uma faixa). Aparece uma barra escura com: Finalizar, Reabrir, mover de remessa, aplicar próxima ação + data, exportar em Excel, excluir.
 - **Finalizar:** botão ✓ na linha. Some da lista padrão (filtro "Abertos"), fica no histórico (filtro "Finalizados"). Errou? "Reabrir".
 - **Período:** o botão de calendário no topo vale pra todas as abas. Atalhos (hoje, ontem, últimos 7/14/60/90 dias, este mês, mês passado, próximos 7/14/30 dias) ou uma faixa no calendário (clique no início e no fim). "Aplicar em" escolhe se o período olha a data limite ou o envio do PO.
 - **Exportar:** botão "Exportar" → Excel (.xlsx, abre direto, datas e valores já formatados) ou CSV. Sai só o que está filtrado na tela; em Configurações → Dados sai tudo.

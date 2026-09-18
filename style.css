@@ -199,6 +199,19 @@ select { appearance: none; -webkit-appearance: none; padding-right: 28px; backgr
 .lista-datas .item .extra { color: var(--mudo); display: flex; gap: 8px; align-items: center; white-space: nowrap; }
 .vazio { color: var(--mudo); padding: 22px; text-align: center; }
 
+/* ações em massa */
+.massa { position: sticky; top: 53px; z-index: 18; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--primaria); color: #fff; padding: 10px 14px; border-radius: var(--raio); margin-bottom: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.massa b { margin-right: 6px; white-space: nowrap; }
+.massa .btn-mini { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.25); color: #fff; }
+.massa .btn-mini:hover { background: rgba(255,255,255,.22); }
+.massa .btn-mini.perigo { border-color: #fca5a5; color: #fecaca; }
+.massa .massa-acao { display: inline-flex; gap: 6px; align-items: center; border-left: 1px solid rgba(255,255,255,.25); padding-left: 10px; margin-left: 2px; }
+.massa .massa-acao input { padding: 4px 8px; font-size: 12px; border-color: transparent; }
+.massa .massa-acao input[list] { width: 150px; }
+.tabela th.sel, .tabela td.sel { width: 34px; padding-left: 12px; padding-right: 4px; cursor: default; }
+.tabela td.sel input, .tabela th.sel input { width: 16px; height: 16px; min-width: 0; accent-color: var(--primaria); cursor: pointer; }
+.tabela tr.selecionada { background: #eef2ff !important; }
+
 /* pedidos */
 .barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .barra-remessa { margin-bottom: 14px; }

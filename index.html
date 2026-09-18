@@ -166,6 +166,18 @@
       <select id="f-transp" class="filtro"><option value="">Transportadora</option></select>
       <button class="btn-leve btn-limpar oculto" id="btn-limpar-filtros"><svg class="ico"><use href="#i-x"/></svg>Limpar <span id="n-filtros"></span></button>
     </div>
+    <div id="massa" class="massa oculto" role="toolbar">
+      <b id="massa-n">0 selecionados</b>
+      <button class="btn-mini" data-massa="finalizar"><svg class="ico"><use href="#i-check"/></svg>Finalizar</button>
+      <button class="btn-mini" data-massa="reabrir">Reabrir</button>
+      <button class="btn-mini" data-massa="remessa2">→ 2ª remessa</button>
+      <button class="btn-mini" data-massa="remessa1">← 1ª remessa</button>
+      <span class="massa-acao"><input id="massa-acao" list="dl-acoes" placeholder="Próxima ação"><input type="date" id="massa-data" title="Data da ação"><button class="btn-mini" data-massa="acao">Aplicar ação</button></span>
+      <button class="btn-mini" data-massa="xlsx"><svg class="ico"><use href="#i-xls"/></svg>Excel</button>
+      <button class="btn-mini perigo" data-massa="excluir">Excluir</button>
+      <span class="espaco"></span>
+      <button class="btn-mini" data-massa="limpar"><svg class="ico"><use href="#i-x"/></svg>Limpar seleção</button>
+    </div>
     <div class="tabela-wrap">
       <table id="tabela" class="tabela">
         <thead><tr id="tabela-cab"></tr></thead>

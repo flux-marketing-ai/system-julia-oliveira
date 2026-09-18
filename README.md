@@ -9,7 +9,7 @@ guarda observações e ações, e envia aviso diário por e-mail.
 
 ## Como funciona
 
-- **Front:** `index.html` + `app.js` + `style.css` + `core.js` (HTML/CSS/JS puro, sem framework, sem build). GitHub Pages deste repositório. Atualizar = commit na `main`.
+- **Front:** `index.html` + `app.js` + `style.css` + `core.js` (HTML/CSS/JS puro, sem framework, sem build, sem dependência externa: até o Excel é gerado à mão). GitHub Pages deste repositório. Atualizar = commit na `main`.
 - **Dados:** Google Sheets privado do usuário, acessado por Apps Script publicado como app da web ([`apps-script/Code.gs`](apps-script/Code.gs) + o mesmo `core.js`). O navegador guarda cache e fila de envio; a planilha é a fonte da verdade.
 - **Avisos:** gatilho diário do Apps Script, envia pelo Gmail da conta. Horário, dias e antecedência configurados no app.
 - **Segurança:** chave de acesso validada pelo script; nada no repositório dá acesso a dado nenhum.

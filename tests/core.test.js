@@ -145,5 +145,30 @@ t('agrupar valor', C.agrupar(todos, 'fornecedor', 'valor')[0].valor === 15000);
 t('acharFornecedor alias', C.acharFornecedor('MOVEIS DELTA LTDA - 000300', [{ nome: 'Moveis Delta', aliases: 'MOVEIS DELTA LTDA - 000300|Delta' }]) !== null);
 t('acharFornecedor null', C.acharFornecedor('zzz', []) === null);
 
+
+// ---- período dinâmico ----
+t('preset hoje', JSON.stringify(C.calcularPeriodo('hoje', '2026-09-18')) === '{"de":"2026-09-18","ate":"2026-09-18"}');
+t('preset ontem', C.calcularPeriodo('ontem', '2026-09-18').de === '2026-09-17');
+t('últimos 7 inclui hoje', C.calcularPeriodo('u7', '2026-09-18').de === '2026-09-12' && C.calcularPeriodo('u7', '2026-09-18').ate === '2026-09-18');
+t('últimos 90', C.calcularPeriodo('u90', '2026-09-18').de === '2026-06-21');
+t('próximos 7', C.calcularPeriodo('p7', '2026-09-18').ate === '2026-09-24');
+t('este mês', C.calcularPeriodo('mes', '2026-09-18').de === '2026-09-01' && C.calcularPeriodo('mes', '2026-09-18').ate === '2026-09-30');
+t('mês passado', C.calcularPeriodo('mesPassado', '2026-09-18').de === '2026-08-01' && C.calcularPeriodo('mesPassado', '2026-09-18').ate === '2026-08-31');
+t('mês passado em janeiro', C.calcularPeriodo('mesPassado', '2026-01-10').de === '2025-12-01' && C.calcularPeriodo('mesPassado', '2026-01-10').ate === '2025-12-31');
+t('tudo vazio', C.calcularPeriodo('tudo').de === '');
+t('período por envio', C.noPeriodo({ limite: '2026-10-07', envio: '2026-09-16' }, { de: '2026-09-15', ate: '2026-09-17', campo: 'envio' }) === true && C.noPeriodo({ limite: '2026-10-07', envio: '2026-09-16' }, { de: '2026-09-15', ate: '2026-09-17', campo: 'limite' }) === false);
+t('rótulo preset', C.rotuloPeriodo({ preset: 'u7', de: '2026-09-12', ate: '2026-09-18' }) === 'Últimos 7 dias · 12/09 – 18/09');
+t('rótulo dia único', C.rotuloPeriodo({ preset: 'hoje', de: '2026-09-18', ate: '2026-09-18' }) === 'Hoje · 18/09');
+t('rótulo tudo', C.rotuloPeriodo({ preset: 'tudo', de: '', ate: '' }) === 'Todo o período');
+t('resumo próximos 14', C.resumo([{ po: 'a', limite: '2026-09-30' }], '2026-09-18', 2, 14).proximos.length === 1 && C.resumo([{ po: 'a', limite: '2026-09-30' }], '2026-09-18', 2, 7).proximos.length === 0);
+const tp = C.tabelaPor([{ time: 'decor', qtd: 10, valor: 100, limite: '2026-09-01' }, { time: 'decor', qtd: 5, valor: 50, limite: '2026-12-01' }, { time: 'cozinha', qtd: 1, valor: 1, limite: '2026-12-01' }], 'time', '2026-09-18');
+t('tabelaPor', tp[0].chave === 'decor' && tp[0].pedidos === 2 && tp[0].pecas === 15 && tp[0].valor === 150 && tp[0].atrasados === 1);
+
+// ---- xlsx ----
+t('crc32 conhecido', C.crc32(new TextEncoder().encode('123456789')) === 0xCBF43926);
+const x = C.exportarXLSX(todos, ['po', 'status', 'fornecedor', 'limite', 'qtd', 'valor', 'saldo', 'remessa'], { hoje });
+t('xlsx é zip', x[0] === 0x50 && x[1] === 0x4b && x.length > 1000);
+fs.writeFileSync(__dirname + '/../amostras/_teste.xlsx', x);
+
 console.log(ok + ' ok, ' + falhas.length + ' falhas' + (falhas.length ? ':\n  ' + falhas.join('\n  ') : ''));
 process.exit(falhas.length ? 1 : 0);

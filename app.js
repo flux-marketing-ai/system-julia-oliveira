@@ -7,6 +7,7 @@
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const hoje = () => C.hojeISO();
+  const ico = n => '<svg class="ico"><use href="#i-' + n + '"/></svg>';
 
   // ---------------- Estado ----------------
   const LS = 'sjo_estado_v1', LS_LOCAL = 'sjo_local_v1';
@@ -33,6 +34,9 @@
     });
     cfg.hora = Number(cfg.hora); cfg.antecedencia = Number(cfg.antecedencia);
     cfg.diasSemana = (cfg.diasSemana || []).map(Number);
+    if (!cfg.periodo.preset) cfg.periodo.preset = (cfg.periodo.de || cfg.periodo.ate) ? 'custom' : 'tudo';
+    if (!cfg.periodo.campo) cfg.periodo.campo = 'limite';
+    cfg.dashProximos = Number(cfg.dashProximos) || 7; cfg.dashTop = Number(cfg.dashTop) || 10;
     return cfg;
   }
   function salvarLocal() {
@@ -79,7 +83,7 @@
     const el = $('#aviso'); if (!el) return;
     const n = S.fila.length;
     let mostrar = false, cls = 'amarelo', html = '';
-    const acoes = '<button class="btn-mini" data-aviso="tentar">Tentar agora</button> <button class="btn-mini" data-aviso="copia">Baixar cópia (CSV)</button>';
+    const acoes = '<button class="btn-mini" data-aviso="tentar">Tentar agora</button> <button class="btn-mini" data-aviso="copia">Baixar cópia (Excel)</button>';
     const guarda = n + (n === 1 ? ' alteração guardada' : ' alterações guardadas') + ' neste navegador' + (S.filaDesde ? ' (' + tempoDesde(S.filaDesde) + ')' : '') + '. <b>Não feche o navegador limpando os dados</b> até aparecer "Salvo" em verde.';
     if (n && !conectado()) {
       mostrar = true; html = '<b>Sem conexão configurada.</b> ' + guarda + ' Configure a conexão em Configurações. ' + '<button class="btn-mini" data-aviso="config">Abrir Configurações</button>';
@@ -246,9 +250,11 @@
   }
 
   // ---------------- Helpers de exibição ----------------
+  function tagDe(grupo, codigo) { return S.tags.find(x => x.grupo === grupo && x.codigo === codigo); }
+  function nomeTag(grupo, codigo) { const t = tagDe(grupo, codigo); return t ? t.nome : (codigo || ''); }
   function tag(grupo, codigo) {
     if (!codigo) return '';
-    const t = S.tags.find(x => x.grupo === grupo && x.codigo === codigo);
+    const t = tagDe(grupo, codigo);
     const cor = (t && t.cor) || '#9ca3af';
     return '<span class="tag' + (clara(cor) ? ' clara' : '') + '" style="--cor:' + esc(cor) + '" title="' + esc(codigo) + '">' + esc(t ? t.nome : codigo) + '</span>';
   }
@@ -268,6 +274,7 @@
     if (f.obs) partes.push(f.obs);
     return partes.join(' · ');
   }
+  function corFornecedor(nome) { const f = fornecedorDe(nome); return (f && f.cor) || '#d1d5db'; }
   function chipFornecedor(nome) {
     const f = fornecedorDe(nome);
     const regra = regraFornecedor(f);
@@ -277,8 +284,8 @@
     return '<span class="status-pill" style="--cor:' + esc(S.config.statusCores[st]) + '">' + esc(S.config.statusNomes[st]) + '</span>';
   }
   function transpDoFornecedor(nome) { const f = fornecedorDe(nome); return f ? (f.transportadora || '') : ''; }
-  function ctx() { return { hoje: hoje(), antecedencia: S.config.antecedencia, transpDoFornecedor, statusNomes: S.config.statusNomes }; }
-  function periodoAtual() { return S.config.periodo || { de: '', ate: '' }; }
+  function ctx() { return { hoje: hoje(), antecedencia: S.config.antecedencia, transpDoFornecedor, statusNomes: S.config.statusNomes, extrasNome: Object.fromEntries((S.config.colunasExtras || []).map(e => [e.k, e.nome])) }; }
+  function periodoAtual() { return S.config.periodo || { de: '', ate: '', campo: 'limite' }; }
   function pedidosNoPeriodo() { return S.pedidos.filter(p => C.noPeriodo(p, periodoAtual())); }
 
   let toastTimer;
@@ -286,6 +293,96 @@
     const el = $('#toast'); el.textContent = msg; el.className = 'toast' + (erro ? ' erro' : '');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.add('oculto'), erro ? 6000 : 2800);
   }
+  function baixar(dados, nome, tipo) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([dados], { type: tipo }));
+    a.download = nome; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  function exportarLista(lista, nome, fmt) {
+    const cols = colunasVisiveis();
+    if (fmt === 'csv') baixar(C.exportarCSV(lista, cols, ctx()), nome + '-' + hoje() + '.csv', 'text/csv;charset=utf-8');
+    else baixar(C.exportarXLSX(lista, cols, Object.assign(ctx(), { nomeAba: 'Pedidos' })), nome + '-' + hoje() + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    toast(fmt === 'csv' ? 'CSV gerado' : 'Excel gerado');
+  }
+
+  // ---------------- Calendário (compartilhado: período e datas do formulário) ----------------
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const mesDe = iso => (iso || hoje()).slice(0, 7);
+  function mesAdd(ym, n) { const [a, m] = ym.split('-').map(Number); const d = new Date(a, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  // sel: {de, ate}; nav: 'esq' | 'dir' | 'ambos' | 'nenhum'
+  function calMesHTML(ym, sel, nav) {
+    const [a, m] = ym.split('-').map(Number);
+    const primeiro = new Date(a, m - 1, 1); const ini = new Date(a, m - 1, 1 - primeiro.getDay());
+    const h = hoje(); let html = '<div class="cal-mes"><div class="cal-cab">' +
+      (nav === 'esq' || nav === 'ambos' ? '<button type="button" data-nav="-1" title="Mês anterior">' + ico('left') + '</button>' : '<span class="vazio-nav"></span>') +
+      '<span>' + MESES[m - 1] + ' ' + a + '</span>' +
+      (nav === 'dir' || nav === 'ambos' ? '<button type="button" data-nav="1" title="Próximo mês">' + ico('right') + '</button>' : '<span class="vazio-nav"></span>') +
+      '</div><div class="cal-grade">' + ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(d => '<span class="dsem">' + d + '</span>').join('');
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + i);
+      const iso = C.hojeISO(d); const fora = d.getMonth() !== m - 1;
+      if (i === 35 && fora) break;
+      const cls = ['', fora ? 'fora' : '', iso === h ? 'hoje' : '', (d.getDay() === 0 || d.getDay() === 6) ? 'fds' : '',
+        sel && sel.de && sel.ate && iso > sel.de && iso < sel.ate ? 'na-faixa' : '',
+        sel && iso === sel.de ? 'ini' : '', sel && iso === sel.ate ? 'fim' : '',
+        sel && sel.de && sel.ate && sel.de !== sel.ate && (iso === sel.de || iso === sel.ate) ? 'na-faixa' : ''].filter(Boolean).join(' ');
+      html += '<button type="button" class="' + cls + '" data-dia="' + iso + '">' + d.getDate() + '</button>';
+    }
+    return html + '</div></div>';
+  }
+
+  // ---------------- Período global ----------------
+  const PC = { mes: mesDe(), de: '', ate: '', pendente: false };
+  function renderPeriodo() {
+    const p = periodoAtual();
+    $('#periodo-rotulo').textContent = C.rotuloPeriodo(p) + (p.campo === 'envio' && (p.de || p.ate) ? ' · envio' : '');
+    $('#periodo-btn').classList.toggle('ativo', !!(p.de || p.ate));
+    const ativo = p.preset || 'tudo';
+    const grupos = [['tudo', 'hoje', 'ontem', 'u7', 'u14', 'mes', 'mesPassado', 'u60', 'u90'], ['p7', 'p14', 'p30']];
+    $('#pp-presets').innerHTML = grupos.map(g => g.map(id => { const pr = C.PRESETS_PERIODO.find(x => x.id === id); return '<button type="button" data-preset="' + id + '"' + (ativo === id ? ' class="ativo"' : '') + '>' + esc(pr.nome) + '</button>'; }).join('')).join('<div class="sep"></div>');
+    $$('#pp-campo button').forEach(b => b.classList.toggle('ativo', b.dataset.v === (p.campo || 'limite')));
+    if (!PC.pendente) { PC.de = p.de; PC.ate = p.ate; }
+    $('#pp-de').value = C.fmtData(PC.de); $('#pp-ate').value = C.fmtData(PC.ate);
+    $('#pp-cal').innerHTML = calMesHTML(PC.mes, { de: PC.de, ate: PC.ate }, 'esq') + calMesHTML(mesAdd(PC.mes, 1), { de: PC.de, ate: PC.ate }, 'dir');
+    $('#pp-dica').textContent = PC.pendente ? 'agora clique no fim' : 'clique no início e no fim';
+  }
+  function definirPeriodo(preset, de, ate, campo) {
+    const per = preset === 'custom' ? { de: de || '', ate: ate || '' } : C.calcularPeriodo(preset, hoje());
+    per.preset = preset; per.campo = campo || periodoAtual().campo || 'limite';
+    if (per.de && per.ate && per.de > per.ate) { const t = per.de; per.de = per.ate; per.ate = t; }
+    S.config.periodo = per; PC.pendente = false; PC.de = per.de; PC.ate = per.ate;
+    if (per.de) PC.mes = mesDe(per.de);
+    salvarConfig(); renderPeriodo(); renderAba();
+  }
+  function clicarDiaPeriodo(iso) {
+    if (!PC.pendente) { PC.de = iso; PC.ate = iso; PC.pendente = true; renderPeriodo(); return; }
+    PC.pendente = false;
+    const de = iso < PC.de ? iso : PC.de, ate = iso < PC.de ? PC.de : iso;
+    definirPeriodo('custom', de, ate);
+    fecharPopovers();
+  }
+
+  // ---------------- Seletor de data nos formulários (input.dp + .dp-cal) ----------------
+  function abrirDP(inp) {
+    const cal = inp.parentNode.querySelector('.dp-cal'); if (!cal) return;
+    $$('.dp-cal').forEach(c => { if (c !== cal) c.classList.add('oculto'); });
+    const v = C.parseData(inp.value);
+    if (cal.classList.contains('oculto')) cal.dataset.mes = mesDe(v || hoje());
+    renderDP(cal, v); cal.classList.remove('oculto');
+  }
+  function renderDP(cal, v) {
+    cal.innerHTML = calMesHTML(cal.dataset.mes, { de: v, ate: v }, 'ambos') + '<div class="dp-rodape"><button type="button" class="btn-mini" data-dp="hoje">Hoje</button><button type="button" class="btn-mini" data-dp="limpar">Limpar</button></div>';
+  }
+  function tratarCliqueDP(e) {
+    const cal = e.target.closest('.dp-cal'); if (!cal) return false;
+    const inp = cal.parentNode.querySelector('input.dp');
+    const nav = e.target.closest('button[data-nav]'); const dia = e.target.closest('button[data-dia]'); const acao = e.target.closest('button[data-dp]');
+    if (nav) { cal.dataset.mes = mesAdd(cal.dataset.mes, Number(nav.dataset.nav)); renderDP(cal, C.parseData(inp.value)); }
+    else if (dia) { inp.value = C.fmtData(dia.dataset.dia); cal.classList.add('oculto'); inp.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (acao) { inp.value = acao.dataset.dp === 'hoje' ? C.fmtData(hoje()) : ''; cal.classList.add('oculto'); inp.dispatchEvent(new Event('change', { bubbles: true })); }
+    return true;
+  }
+  function normalizarDP(inp) { const v = C.parseData(inp.value); if (inp.value.trim() && !v) { toast('Data inválida: use dd/mm/aaaa', true); inp.value = ''; } else inp.value = C.fmtData(v); }
 
   // ---------------- Abas ----------------
   function irPara(aba) {
@@ -300,82 +397,97 @@
     else if (UI.aba === 'pedidos') renderPedidos();
     else renderConfig();
   }
-  function renderTudo() { aplicarCoresStatus(); renderAba(); renderDatalists(); atualizarSync(); }
+  function renderTudo() { aplicarCoresStatus(); aplicarNome(); renderAba(); renderDatalists(); atualizarSync(); }
   function aplicarCoresStatus() {
     const r = document.documentElement.style, c = S.config.statusCores;
     r.setProperty('--atrasado', c.atrasado); r.setProperty('--vence', c.vence); r.setProperty('--andamento', c.andamento); r.setProperty('--finalizado', c.finalizado);
   }
+  function aplicarNome() { const n = S.config.nomeSistema || C.CONFIG_PADRAO.nomeSistema; $('#logo').textContent = n; document.title = n; }
   function renderDatalists() {
     $('#dl-fornecedores').innerHTML = S.fornecedores.map(f => '<option value="' + esc(f.nome) + '">').join('');
     $('#dl-acoes').innerHTML = (S.config.acoes || []).map(a => '<option value="' + esc(a) + '">').join('');
   }
-
-  // ---------------- Período global ----------------
-  function renderPeriodo() {
-    const p = periodoAtual();
-    $('#periodo-preset').value = p.preset || 'tudo';
-    $('#periodo-custom').classList.toggle('oculto', (p.preset || 'tudo') !== 'custom');
-    $('#periodo-de').value = p.de || ''; $('#periodo-ate').value = p.ate || '';
-  }
-  function definirPeriodo(preset, de, ate) {
-    const h = hoje(); const d = C.hojeISO(new Date());
-    let per = { preset, de: '', ate: '' };
-    if (preset === 'semana') {
-      const dt = new Date(); const dow = (dt.getDay() + 6) % 7; // seg=0
-      per.de = C.addDias(d, -dow); per.ate = C.addDias(per.de, 6);
-    } else if (preset === 'mes') {
-      per.de = h.slice(0, 8) + '01'; const dt = new Date(); per.ate = C.hojeISO(new Date(dt.getFullYear(), dt.getMonth() + 1, 0));
-    } else if (preset === '30') { per.de = h; per.ate = C.addDias(h, 30); }
-    else if (preset === 'custom') { per.de = de || ''; per.ate = ate || ''; }
-    S.config.periodo = per; salvarConfig(); renderPeriodo(); renderAba();
-  }
+  function fecharPopovers(exceto) { $$('.menu .popover').forEach(p => { if (p !== exceto) p.classList.add('oculto'); }); }
 
   // ---------------- DASH ----------------
+  let detalheVencemAberto = false;
   function renderDash() {
-    const h = hoje(), ant = S.config.antecedencia;
+    const h = hoje(), ant = S.config.antecedencia, cfg = S.config;
     const base = pedidosNoPeriodo();
-    const r = C.resumo(base, h, ant);
+    const r = C.resumo(base, h, ant, cfg.dashProximos);
     const rTudo = C.resumo(S.pedidos, h, ant); // ações de hoje não dependem do período
-    const n = S.config.statusNomes, cor = S.config.statusCores;
+    const n = cfg.statusNomes, cor = cfg.statusCores;
     const valorAberto = r.abertos.reduce((s, p) => s + (Number(p.valor) || 0), 0);
     const pecasAbertas = r.abertos.reduce((s, p) => s + C.saldo(p), 0);
-    const kpi = (t, num, sub, c, filtro) => '<div class="kpi" style="--cor:' + c + '" data-filtro="' + esc(filtro) + '"><div class="t">' + esc(t) + '</div><div class="n">' + num + '</div><div class="s">' + esc(sub) + '</div></div>';
+    const per = periodoAtual();
+    $('#dados-sub').textContent = (per.de || per.ate ? C.rotuloPeriodo(per) + ' · ' : '') + base.length + ' pedido' + (base.length === 1 ? '' : 's') + ' no período';
+    const kpi = (t, num, sub, c, filtro, extra) => '<div class="kpi' + (extra || '') + '" style="--cor:' + c + '" data-filtro="' + esc(filtro) + '"><div class="t">' + esc(t) + (filtro === 'vence' ? ico('chev') : '') + '</div><div class="n">' + num + '</div><div class="s">' + esc(sub) + '</div></div>';
     $('#kpis').innerHTML =
       kpi(n.atrasado + 's', r.atrasados.length, C.fmtPct(r.atrasados.length, r.abertos.length) + ' dos abertos', cor.atrasado, 'atrasado') +
-      kpi('Vencem em ' + ant + ' dias', r.vencem.length, C.fmtPct(r.vencem.length, r.abertos.length) + ' dos abertos', cor.vence, 'vence') +
+      kpi('Vencem em breve', r.vencem.length, 'até ' + ant + ' dia' + (ant === 1 ? '' : 's') + ' · ' + C.fmtPct(r.vencem.length, r.abertos.length) + ' dos abertos · clique pra ver por dia', cor.vence, 'vence', detalheVencemAberto ? ' aberto' : '') +
       kpi('Ações hoje', rTudo.acoesHoje.length, rTudo.acoesHoje.filter(p => p.dataAcao < h).length + ' atrasadas', '#111827', 'acoes') +
       kpi(n.andamento, r.andamento.length, C.fmtPct(r.andamento.length, r.abertos.length) + ' dos abertos', cor.andamento, 'andamento') +
       '<div class="kpi macro"><div class="t">Abertos</div><div class="n">' + r.abertos.length + '</div><div class="s">' + r.abertos.filter(p => C.remessaDe(p) === '2').length + ' na 2ª remessa · ' + r.finalizados.length + ' finalizados · ' + C.fmtInt(pecasAbertas) + ' peças · ' + C.fmtMoeda(valorAberto) + '</div></div>';
+    renderDetalheVencem(r);
 
-    // gráficos
-    $('#dash-metrica').value = S.config.dashMetrica || 'pedidos';
-    $('#dash-recorte').value = S.config.dashRecorte || 'abertos';
-    const rec = S.config.dashRecorte || 'abertos';
+    // gráfico por fornecedor (animado)
+    $('#dash-metrica').value = cfg.dashMetrica || 'pedidos';
+    $('#dash-recorte').value = cfg.dashRecorte || 'abertos';
+    $('#dash-top').value = String(cfg.dashTop || 10);
+    const rec = cfg.dashRecorte || 'abertos';
     const conj = rec === 'todos' ? base : rec === 'abertos' ? r.abertos : base.filter(p => C.statusDe(p, h, ant) === rec);
-    const met = S.config.dashMetrica || 'pedidos';
+    const met = cfg.dashMetrica || 'pedidos';
     const fmtV = v => met === 'valor' ? C.fmtMoeda(v) : C.fmtInt(v);
-    const barras = (el, dados, rotulo) => {
+    const nomeMet = { pedidos: 'Pedidos', pecas: 'Peças em aberto', valor: 'Valor' }[met];
+    $('#tit-forn').textContent = 'Por fornecedor × ' + nomeMet;
+    const barras = (el, dados, chave, rotulo, corDe) => {
       const max = Math.max(1, ...dados.map(d => d.valor));
-      el.innerHTML = dados.length ? dados.map(d => '<div class="barra-linha" title="' + esc(d.chave) + '"><span class="nome">' + (rotulo ? rotulo(d.chave) : esc(d.chave)) + '</span><div class="trilho"><div class="fill" style="width:' + (d.valor / max * 100).toFixed(1) + '%"></div></div><span class="v">' + fmtV(d.valor) + '</span></div>').join('')
+      el.innerHTML = dados.length ? dados.map(d => '<div class="barra-linha" data-chave="' + esc(chave) + '" data-v="' + esc(d.chave) + '" title="' + esc(d.chave) + ': ' + esc(fmtV(d.valor)) + '"><span class="nome">' + (corDe ? '<span class="bola" style="--cor:' + esc(corDe(d.chave)) + '"></span>' : '') + (rotulo ? rotulo(d.chave) : esc(d.chave)) + '</span><div class="trilho"><div class="fill" data-w="' + (d.valor / max * 100).toFixed(1) + '"></div></div><span class="v">' + fmtV(d.valor) + '</span></div>').join('')
         : '<div class="vazio">Nada nesse recorte.</div>';
+      requestAnimationFrame(() => requestAnimationFrame(() => $$('.fill', el).forEach(f => { f.style.width = f.dataset.w + '%'; })));
     };
-    $('.card-cab h3', $('#graf-fornecedor').parentNode).textContent = 'Por fornecedor · ' + { pedidos: 'pedidos', pecas: 'peças em aberto', valor: 'valor' }[met];
-    barras($('#graf-fornecedor'), C.agrupar(conj, 'fornecedor', met, 10));
-    barras($('#graf-time'), C.agrupar(conj, 'time', met, 10), k => { const t = S.tags.find(x => x.grupo === 'time' && x.codigo === k); return esc(t ? t.nome : k); });
+    barras($('#graf-fornecedor'), C.agrupar(conj, 'fornecedor', met, cfg.dashTop || 10), 'fornecedor', null, corFornecedor);
 
-    // próximos 7 dias
+    // por time: gráfico ou tabela
+    $$('#time-vista button').forEach(b => b.classList.toggle('ativo', b.dataset.v === (cfg.dashTimeVista || 'grafico')));
+    const gt = $('#graf-time');
+    if ((cfg.dashTimeVista || 'grafico') === 'tabela') {
+      const linhas = C.tabelaPor(conj, 'time', h, ant);
+      gt.className = '';
+      gt.innerHTML = linhas.length ? '<table class="tab-mini"><thead><tr><th>Time</th><th class="num">Pedidos</th><th class="num">Peças em aberto</th><th class="num">Valor</th><th class="num">Atrasados</th></tr></thead><tbody>' +
+        linhas.map(l => '<tr><td>' + tag('time', l.chave) + '</td><td class="num">' + C.fmtInt(l.pedidos) + '</td><td class="num">' + C.fmtInt(l.pecas) + '</td><td class="num">' + C.fmtMoeda(l.valor) + '</td><td class="num' + (l.atrasados ? ' atras' : '') + '">' + C.fmtInt(l.atrasados) + '</td></tr>').join('') +
+        '</tbody></table>' : '<div class="vazio">Nada nesse recorte.</div>';
+    } else {
+      gt.className = 'barras';
+      barras(gt, C.agrupar(conj, 'time', met, 10), 'time', k => esc(nomeTag('time', k)), k => { const t = tagDe('time', k); return (t && t.cor) || '#d1d5db'; });
+    }
+
+    // próximos dias
+    $('#prox-dias').innerHTML = [2, 7, 14, 30, 60, 90].map(d => '<button type="button" data-dias="' + d + '"' + (d === cfg.dashProximos ? ' class="ativo"' : '') + '>' + d + ' dias</button>').join('');
     const grupos = new Map();
-    r.proximos7.forEach(p => { if (!grupos.has(p.limite)) grupos.set(p.limite, []); grupos.get(p.limite).push(p); });
-    $('#prox7-total').textContent = r.proximos7.length + ' pedido' + (r.proximos7.length === 1 ? '' : 's');
-    $('#prox7').innerHTML = grupos.size ? Array.from(grupos, ([d, ps]) => '<div class="dia"><div class="dia-cab">' + C.diaSemana(d) + ' ' + C.fmtDataCurta(d) + (d === h ? ' · hoje' : '') + '</div>' +
-      ps.map(p => '<div class="item" data-po="' + esc(p.po) + '"><b>' + esc(p.po) + '</b> ' + esc(p.fornecedor) + (p.acao ? ' <span class="mudo">· ' + esc(p.acao) + '</span>' : '') + '</div>').join('') + '</div>').join('')
-      : '<div class="vazio">Nada vence nos próximos 7 dias.</div>';
+    r.proximos.forEach(p => { if (!grupos.has(p.limite)) grupos.set(p.limite, []); grupos.get(p.limite).push(p); });
+    $('#prox-total').textContent = r.proximos.length + ' pedido' + (r.proximos.length === 1 ? '' : 's');
+    $('#prox7').innerHTML = grupos.size ? Array.from(grupos, ([d, ps]) => '<div class="dia"><div class="dia-cab' + (d === h ? ' hoje' : '') + '">' + C.diaSemana(d) + ' ' + C.fmtDataCurta(d) + '<span class="mudo">' + (d === h ? 'hoje' : d === C.addDias(h, 1) ? 'amanhã' : 'em ' + C.diffDias(h, d) + ' dias') + ' · ' + ps.length + '</span></div>' +
+      ps.map(p => '<div class="item" data-po="' + esc(p.po) + '"><b>' + esc(p.po) + '</b><span class="f">' + chipFornecedor(p.fornecedor) + '</span><span class="extra">' + tag('tipo', p.tipo) + '<span>' + C.fmtInt(C.saldo(p)) + ' pç</span>' + (p.acao ? '<span>· ' + esc(p.acao) + (p.dataAcao ? ' ' + C.fmtDataCurta(p.dataAcao) : '') + '</span>' : '') + '</span></div>').join('') + '</div>').join('')
+      : '<div class="vazio">Nada vence nos próximos ' + cfg.dashProximos + ' dias.</div>';
 
-    // tarefas de hoje
+    // lembrete: tarefas de hoje
     const tarefas = rTudo.acoesHoje;
-    $('#hoje-total').textContent = tarefas.length ? tarefas.length + (tarefas.length === 1 ? ' ação' : ' ações') : '';
-    $('#tarefas-hoje').innerHTML = tarefas.length ? tarefas.map(p => '<li class="' + (p.dataAcao < h ? 'atrasada' : '') + '"><input type="checkbox" data-po="' + esc(p.po) + '" title="Marcar como feita"><div class="tt"><b>' + esc(p.acao || 'Ação') + '</b> · PO ' + esc(p.po) + '<small>' + esc(p.fornecedor) + (p.dataAcao < h ? ' · era ' + C.fmtDataCurta(p.dataAcao) : '') + (p.obs ? ' · ' + esc(p.obs) : '') + '</small></div></li>').join('')
-      : '<li class="mudo">Nenhuma ação marcada pra hoje. Marque "Próxima ação" e "Data da ação" na tabela.</li>';
+    const atrasadas = tarefas.filter(p => p.dataAcao < h), deHoje = tarefas.filter(p => p.dataAcao === h);
+    $('#hoje-total').textContent = tarefas.length ? tarefas.length + (tarefas.length === 1 ? ' tarefa' : ' tarefas') : '';
+    const item = p => '<li class="' + (p.dataAcao < h ? 'atrasada' : '') + '"><input type="checkbox" data-po="' + esc(p.po) + '" title="Marcar como feita"><div class="tt"><b>' + esc(p.acao || 'Ação') + '</b> · PO ' + esc(p.po) + '<small>' + esc(p.fornecedor) + (p.dataAcao < h ? ' · era ' + C.fmtDataCurta(p.dataAcao) : '') + (p.obs ? ' · ' + esc(p.obs) : '') + '</small></div></li>';
+    $('#tarefas-hoje').innerHTML = tarefas.length ? (atrasadas.length ? '<li class="sub">Atrasadas</li>' + atrasadas.map(item).join('') : '') + (deHoje.length ? '<li class="sub">Hoje · ' + C.diaSemana(h) + ' ' + C.fmtDataCurta(h) + '</li>' + deHoje.map(item).join('') : '')
+      : '<li class="vazio-t">Nada marcado pra hoje. Preencha "Próxima ação" e "Data da ação" na tabela e a tarefa aparece aqui.</li>';
+  }
+  function renderDetalheVencem(r) {
+    const el = $('#detalhe-vencem'); const h = hoje(), ant = S.config.antecedencia;
+    if (!detalheVencemAberto) { el.classList.add('oculto'); return; }
+    const dias = [];
+    for (let i = 0; i <= ant; i++) { const d = C.addDias(h, i); dias.push({ d, ps: r.vencem.filter(p => p.limite === d) }); }
+    el.innerHTML = '<div class="detalhe-grade">' + dias.map(x => '<div class="detalhe-dia"><div class="dd-cab">' + (x.d === h ? 'Hoje' : x.d === C.addDias(h, 1) ? 'Amanhã' : 'Em ' + C.diffDias(h, x.d) + ' dias') + ' · ' + C.diaSemana(x.d) + ' ' + C.fmtDataCurta(x.d) + '<span>' + x.ps.length + '</span></div>' +
+      (x.ps.length ? x.ps.map(p => '<div class="item" data-po="' + esc(p.po) + '"><b>' + esc(p.po) + '</b> ' + esc(p.fornecedor) + (p.acao ? ' <span class="mudo">· ' + esc(p.acao) + '</span>' : '') + '</div>').join('') : '<div class="mudo">nenhum</div>') + '</div>').join('') +
+      '</div><div class="dd-rodape"><button class="btn-mini" data-ver="vence">Ver na tabela</button><button class="btn-mini" data-ver="fechar">Fechar</button></div>';
+    el.classList.remove('oculto');
   }
 
   // ---------------- PEDIDOS ----------------
@@ -388,6 +500,7 @@
     if (k.startsWith('x:')) { const e = (S.config.colunasExtras || []).find(x => x.k === k.slice(2)); return e ? e.nome : k; }
     return C.CAMPO[k] ? C.CAMPO[k].nome : k;
   }
+  function filtrosAtivos() { const f = UI.filtros; return ['fornecedor', 'tipo', 'time', 'transportadora', 'busca'].filter(k => f[k]).length + ((f.status || 'abertos') !== 'abertos' ? 1 : 0); }
 
   function renderFiltros() {
     const f = UI.filtros;
@@ -398,14 +511,21 @@
     const forn = Array.from(new Set(S.pedidos.map(p => p.fornecedor).filter(Boolean))).sort((a, b) => a.localeCompare(b));
     opts($('#f-fornecedor'), forn.map(v => ({ v, n: v })), f.fornecedor || '', 'Fornecedor');
     const tipos = Array.from(new Set(S.pedidos.map(p => p.tipo).filter(Boolean)));
-    opts($('#f-tipo'), tipos.map(v => { const t = S.tags.find(x => x.grupo === 'tipo' && x.codigo === v); return { v, n: t ? t.nome : v }; }), f.tipo || '', 'Tipo');
+    opts($('#f-tipo'), tipos.map(v => ({ v, n: nomeTag('tipo', v) })), f.tipo || '', 'Tipo');
     const times = Array.from(new Set(S.pedidos.map(p => p.time).filter(Boolean)));
-    opts($('#f-time'), times.map(v => { const t = S.tags.find(x => x.grupo === 'time' && x.codigo === v); return { v, n: t ? t.nome : v }; }), f.time || '', 'Time');
+    opts($('#f-time'), times.map(v => ({ v, n: nomeTag('time', v) })), f.time || '', 'Time');
     const transp = Array.from(new Set(S.fornecedores.map(x => x.transportadora).filter(Boolean))).sort();
     opts($('#f-transp'), transp.map(v => ({ v, n: v })), f.transportadora || '', 'Transportadora');
     $('#f-status').value = f.status || 'abertos'; $('#f-status').classList.toggle('ativo', (f.status || 'abertos') !== 'abertos');
     $$('#f-remessa button').forEach(b => b.classList.toggle('ativo', b.dataset.v === (f.remessa || '1')));
+    // contadores por remessa, respeitando os outros filtros
+    const semRemessa = Object.assign({}, f, { periodo: periodoAtual(), remessa: 'todas' });
+    const base = C.filtrar(S.pedidos, semRemessa, ctx());
+    const c1 = base.filter(p => C.remessaDe(p) === '1').length, c2 = base.length - c1;
+    $('[data-cont="1"]').textContent = c1; $('[data-cont="2"]').textContent = c2; $('[data-cont="todas"]').textContent = base.length;
     if ($('#busca').value !== (f.busca || '')) $('#busca').value = f.busca || '';
+    const na = filtrosAtivos();
+    $('#btn-limpar-filtros').classList.toggle('oculto', na === 0); $('#n-filtros').textContent = na;
   }
 
   function renderPedidos() {
@@ -416,7 +536,6 @@
     const cols = colunasVisiveis();
     $('#tabela-cab').innerHTML = cols.map(k => '<th data-col="' + esc(k) + '">' + esc(nomeColuna(k)) + (UI.ordem.col === k ? '<span class="seta">' + (UI.ordem.dir === 'asc' ? '▲' : '▼') + '</span>' : '') + '</th>').join('') + '<th></th>';
     const h = hoje(), ant = S.config.antecedencia;
-    const acoesOpts = (S.config.acoes || []);
     const cel = (p, k) => {
       const v = p[k];
       const inp = (tipo, extra) => '<input type="' + tipo + '" data-po="' + esc(p.po) + '" data-k="' + esc(k) + '" value="' + esc(v == null ? '' : v) + '"' + (extra || '') + '>';
@@ -443,9 +562,9 @@
     const linhas = lista.map(p => {
       const st = C.statusDe(p, h, ant);
       const tds = cols.map(k => { const c = cel(p, k); return c.startsWith('<td') ? c + '</td>' : '<td>' + c + '</td>'; }).join('');
-      const btn = p.finalizacao ? '<button class="btn-mini" data-acao="reabrir" data-po="' + esc(p.po) + '">Reabrir</button>' : '<button class="btn-mini" data-acao="finalizar" data-po="' + esc(p.po) + '" title="Finalizar (data de hoje)">✓ Finalizar</button>';
+      const btn = p.finalizacao ? '<button class="btn-mini" data-acao="reabrir" data-po="' + esc(p.po) + '">Reabrir</button>' : '<button class="btn-mini" data-acao="finalizar" data-po="' + esc(p.po) + '" title="Finalizar (data de hoje)">' + ico('check') + 'Finalizar</button>';
       const mover = C.remessaDe(p) === '2' ? '<button class="btn-mini" data-acao="remessa1" data-po="' + esc(p.po) + '" title="Voltar pra 1ª remessa">← 1ª</button>' : '<button class="btn-mini" data-acao="remessa2" data-po="' + esc(p.po) + '" title="Mover pra 2ª remessa (entrega parcial, item similar, BO)">→ 2ª</button>';
-      return '<tr class="st-' + st + '" data-po="' + esc(p.po) + '">' + tds + '<td class="acoes">' + btn + ' ' + mover + ' <button class="btn-mini" data-acao="editar" data-po="' + esc(p.po) + '" title="Editar tudo">✎</button></td></tr>';
+      return '<tr class="st-' + st + '" data-po="' + esc(p.po) + '">' + tds + '<td class="acoes">' + btn + mover + '<button class="btn-mini" data-acao="editar" data-po="' + esc(p.po) + '" title="Editar tudo">' + ico('edit') + '</button></td></tr>';
     });
     $('#tabela-corpo').innerHTML = linhas.join('');
     $('#tabela-vazio').classList.toggle('oculto', lista.length > 0);
@@ -453,55 +572,64 @@
     $('#tabela-total').textContent = lista.length + ' de ' + S.pedidos.length + ' pedidos · ' + C.fmtInt(lista.reduce((s, p) => s + C.saldo(p), 0)) + ' peças em aberto · ' + C.fmtMoeda(valor);
     renderPopColunas();
   }
+  function listaFiltrada() { return C.ordenar(C.filtrar(S.pedidos, Object.assign({}, UI.filtros, { periodo: periodoAtual() }), ctx()), UI.ordem.col, UI.ordem.dir, ctx()); }
   function renderPopColunas() {
     const vis = S.config.colunasVisiveis || [];
     const itens = C.CAMPOS.filter(c => c.k !== 'po' && !c.oculto).map(c => ({ k: c.k, n: c.nome })).concat((S.config.colunasExtras || []).map(e => ({ k: 'x:' + e.k, n: e.nome })));
     $('#pop-colunas').innerHTML = itens.map(i => '<label><input type="checkbox" value="' + esc(i.k) + '"' + (vis.includes(i.k) ? ' checked' : '') + '> ' + esc(i.n) + '</label>').join('');
   }
-  function exportar(lista, nome) {
-    const cols = colunasVisiveis();
-    const extrasNome = Object.fromEntries((S.config.colunasExtras || []).map(e => [e.k, e.nome]));
-    const csv = C.exportarCSV(lista, cols, Object.assign(ctx(), { extrasNome }));
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = nome + '-' + hoje() + '.csv'; a.click(); URL.revokeObjectURL(a.href);
-  }
 
   // ---------------- Modal pedido ----------------
   let pedidoEmEdicao = null;
+  function renderChipsTag(form, grupo, atual) {
+    const wrap = $('.chips-tag[data-grupo="' + grupo + '"]', form);
+    const tags = S.tags.filter(t => t.grupo === grupo && t.codigo !== 'saldo');
+    const extra = atual && !tags.some(t => t.codigo === atual) ? [{ codigo: atual, nome: atual, cor: '#9ca3af' }] : [];
+    wrap.innerHTML = tags.concat(extra).map(t => '<button type="button" data-v="' + esc(t.codigo) + '"' + (t.codigo === atual ? ' class="ativo"' : '') + '><span class="bola" style="--cor:' + esc(t.cor || '#9ca3af') + '"></span>' + esc(t.nome) + '</button>').join('') || '<span class="mudo">Nenhuma cadastrada. Configurações → ' + (grupo === 'tipo' ? 'Tags de tipo' : 'Times') + '.</span>';
+    form[grupo].value = atual || '';
+  }
   function abrirPedido(po) {
     const dlg = $('#dlg-pedido'), form = $('#form-pedido');
     pedidoEmEdicao = po ? pedidoPorPO(po) : null;
     $('#dlg-pedido-titulo').textContent = pedidoEmEdicao ? 'PO ' + pedidoEmEdicao.po : 'Novo pedido';
     $('#btn-excluir-pedido').classList.toggle('oculto', !pedidoEmEdicao);
     form.po.readOnly = !!pedidoEmEdicao;
-    const opt = (grupo, atual) => '<option value="">—</option>' + S.tags.filter(t => t.grupo === grupo).map(t => '<option value="' + esc(t.codigo) + '"' + (t.codigo === atual ? ' selected' : '') + '>' + esc(t.nome) + '</option>').join('') +
-      (atual && !S.tags.some(t => t.grupo === grupo && t.codigo === atual) ? '<option value="' + esc(atual) + '" selected>' + esc(atual) + '</option>' : '');
     const p = pedidoEmEdicao || C.pedidoVazio();
-    form.tipo.innerHTML = opt('tipo', p.tipo); form.time.innerHTML = opt('time', p.time);
-    ['po', 'fornecedor', 'envio', 'leadWms', 'limite', 'qtd', 'qtdEntregue', 'acao', 'dataAcao', 'obs', 'armazem', 'campanha', 'finalizacao'].forEach(k => { form[k].value = p[k] == null ? '' : p[k]; });
+    renderChipsTag(form, 'tipo', p.tipo); renderChipsTag(form, 'time', p.time);
+    ['po', 'fornecedor', 'leadWms', 'qtd', 'qtdEntregue', 'acao', 'obs', 'armazem', 'campanha'].forEach(k => { form[k].value = p[k] == null || p[k] === 0 ? '' : p[k]; });
+    ['envio', 'limite', 'dataAcao', 'finalizacao'].forEach(k => { form[k].value = C.fmtData(p[k]); });
     form.remessa.value = C.remessaDe(p);
     form.valor.value = p.valor ? Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '';
     $('#dlg-pedido-extras').innerHTML = (S.config.colunasExtras || []).map(e => '<div class="campo"><label>' + esc(e.nome) + '</label><input name="x:' + esc(e.k) + '" value="' + esc((p.extras || {})[e.k] || '') + '"></div>').join('');
+    $('details.detalhes', form).open = !!(pedidoEmEdicao && (p.valor || p.armazem || p.campanha || p.qtdEntregue || p.finalizacao));
+    $$('.dp-cal', form).forEach(c => c.classList.add('oculto'));
     dlg.showModal();
+    if (!pedidoEmEdicao) form.po.focus();
   }
   function salvarModalPedido(ev) {
     ev.preventDefault();
     const form = $('#form-pedido'); const fd = new FormData(form);
     const po = String(fd.get('po') || '').trim();
-    if (!po) return;
+    const fornecedor = String(fd.get('fornecedor') || '').trim();
+    const envio = C.parseData(fd.get('envio')), lead = Math.max(0, Math.round(C.parseNumBR(fd.get('leadWms'))));
+    let limite = C.parseData(fd.get('limite'));
+    if (!limite && envio && lead) { limite = C.addDiasUteis(envio, lead); form.limite.value = C.fmtData(limite); toast('Data limite calculada: ' + C.fmtData(limite) + ' (' + lead + ' dias úteis após o envio)'); }
+    if (!po) { toast('Informe o PO', true); form.po.focus(); return; }
+    if (!fornecedor) { toast('Informe o fornecedor', true); form.fornecedor.focus(); return; }
+    if (!limite) { toast('Informe a data limite (ou envio + lead time)', true); form.limite.focus(); return; }
     let p = pedidoEmEdicao;
     if (!p) {
-      if (pedidoPorPO(po)) { toast('Já existe um pedido com o PO ' + po, true); return; }
+      if (pedidoPorPO(po)) { toast('Já existe um pedido com o PO ' + po, true); form.po.focus(); return; }
       p = C.pedidoVazio(); p.po = po; p.origem = 'manual'; S.pedidos.push(p);
     }
     const antes = JSON.stringify(p);
-    ['fornecedor', 'tipo', 'time', 'acao', 'obs', 'armazem', 'campanha', 'remessa'].forEach(k => { p[k] = String(fd.get(k) || '').trim(); });
-    ['envio', 'limite', 'dataAcao', 'finalizacao'].forEach(k => { p[k] = C.parseData(fd.get(k)); });
-    ['leadWms', 'qtd', 'qtdEntregue'].forEach(k => { p[k] = Math.max(0, Math.round(C.parseNumBR(fd.get(k)))); });
+    p.fornecedor = fornecedor; p.envio = envio; p.leadWms = lead; p.limite = limite;
+    ['tipo', 'time', 'acao', 'obs', 'armazem', 'campanha', 'remessa'].forEach(k => { p[k] = String(fd.get(k) || '').trim(); });
+    ['dataAcao', 'finalizacao'].forEach(k => { p[k] = C.parseData(fd.get(k)); });
+    ['qtd', 'qtdEntregue'].forEach(k => { p[k] = Math.max(0, Math.round(C.parseNumBR(fd.get(k)))); });
     p.valor = C.parseNumBR(fd.get('valor'));
     (S.config.colunasExtras || []).forEach(e => { p.extras[e.k] = String(fd.get('x:' + e.k) || '').trim(); });
-    if (!p.limite && p.envio && p.leadWms) p.limite = C.addDiasUteis(p.envio, p.leadWms);
+    if (C.temSaldo(p) && C.remessaDe(p) !== '2') p.remessa = '2';
     if (JSON.stringify(p) !== antes) p.update = hoje();
     if (p.acao && !S.config.acoes.includes(p.acao)) { S.config.acoes.push(p.acao); salvarConfig(); }
     garantirCadastros([p]);
@@ -523,7 +651,7 @@
     r.onload = () => {
       let texto = r.result;
       // tenta latin1 se vier com caracteres quebrados
-      if (/�/.test(texto)) { const r2 = new FileReader(); r2.onload = () => processarTexto(r2.result); r2.readAsText(file, 'ISO-8859-1'); return; }
+      if (/\uFFFD/.test(texto)) { const r2 = new FileReader(); r2.onload = () => processarTexto(r2.result); r2.readAsText(file, 'ISO-8859-1'); return; }
       processarTexto(texto);
     };
     r.readAsText(file, 'UTF-8');
@@ -601,6 +729,7 @@
   // ---------------- CONFIG ----------------
   function renderConfig() {
     const c = S.config;
+    $('#c-nomeSistema').value = c.nomeSistema || '';
     $('#c-apiUrl').value = L.apiUrl; $('#c-chave').value = L.chave; $('#c-linkApp').value = c.linkApp || '';
     $('#c-avisosAtivo').checked = !!c.avisosAtivo; $('#c-emailDestino').value = c.emailDestino || '';
     $('#c-hora').innerHTML = Array.from({ length: 24 }, (_, h) => '<option value="' + h + '"' + (h === Number(c.hora) ? ' selected' : '') + '>' + String(h).padStart(2, '0') + ':00</option>').join('');
@@ -643,20 +772,53 @@
     $$('.aba').forEach(b => b.addEventListener('click', () => irPara(b.dataset.aba)));
     window.addEventListener('hashchange', () => { const a = location.hash.slice(1); if (['dash', 'pedidos', 'config'].includes(a) && a !== UI.aba) irPara(a); });
 
+    // menus (popovers): botão abre/fecha o irmão; clique fora fecha todos
+    $$('.menu > button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const pop = b.parentNode.querySelector('.popover'); const abrir = pop.classList.contains('oculto'); fecharPopovers(); if (abrir) { pop.classList.remove('oculto'); if (pop.id === 'periodo-pop') { PC.pendente = false; renderPeriodo(); } } }));
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.menu')) fecharPopovers();
+      if (!e.target.closest('.campo-dp')) $$('.dp-cal').forEach(c => c.classList.add('oculto'));
+    });
+
     // período
-    $('#periodo-preset').addEventListener('change', e => definirPeriodo(e.target.value, $('#periodo-de').value, $('#periodo-ate').value));
-    ['#periodo-de', '#periodo-ate'].forEach(s => $(s).addEventListener('change', () => definirPeriodo('custom', $('#periodo-de').value, $('#periodo-ate').value)));
+    $('#periodo-pop').addEventListener('click', e => {
+      const pr = e.target.closest('button[data-preset]'); const campo = e.target.closest('#pp-campo button'); const nav = e.target.closest('button[data-nav]'); const dia = e.target.closest('button[data-dia]');
+      if (pr) { definirPeriodo(pr.dataset.preset); if (pr.dataset.preset !== 'custom') fecharPopovers(); }
+      else if (campo) { definirPeriodo(periodoAtual().preset || 'tudo', periodoAtual().de, periodoAtual().ate, campo.dataset.v); }
+      else if (nav) { PC.mes = mesAdd(PC.mes, Number(nav.dataset.nav)); renderPeriodo(); }
+      else if (dia) clicarDiaPeriodo(dia.dataset.dia);
+    });
+    $('#pp-aplicar').addEventListener('click', () => {
+      const de = C.parseData($('#pp-de').value), ate = C.parseData($('#pp-ate').value);
+      if (!de && !ate) { definirPeriodo('tudo'); fecharPopovers(); return; }
+      if (($('#pp-de').value && !de) || ($('#pp-ate').value && !ate)) { toast('Data inválida: use dd/mm/aaaa', true); return; }
+      definirPeriodo('custom', de || ate, ate || de); fecharPopovers();
+    });
+    ['#pp-de', '#pp-ate'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#pp-aplicar').click(); } }));
 
     // dash
     $('#dash-metrica').addEventListener('change', e => { S.config.dashMetrica = e.target.value; salvarConfig(); renderDash(); });
     $('#dash-recorte').addEventListener('change', e => { S.config.dashRecorte = e.target.value; salvarConfig(); renderDash(); });
+    $('#dash-top').addEventListener('change', e => { S.config.dashTop = Number(e.target.value); salvarConfig(); renderDash(); });
+    $('#time-vista').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.config.dashTimeVista = b.dataset.v; salvarConfig(); renderDash(); });
+    $('#prox-dias').addEventListener('click', e => { const b = e.target.closest('button[data-dias]'); if (!b) return; S.config.dashProximos = Number(b.dataset.dias); salvarConfig(); renderDash(); });
     $('#kpis').addEventListener('click', e => {
       const k = e.target.closest('.kpi'); if (!k || !k.dataset.filtro) return;
       const f = k.dataset.filtro;
+      if (f === 'vence') { detalheVencemAberto = !detalheVencemAberto; renderDash(); return; }
       UI.filtros = f === 'acoes' ? { status: 'abertos', remessa: 'todas' } : { status: f, remessa: 'todas' };
       if (f === 'acoes') { UI.ordem = { col: 'dataAcao', dir: 'asc' }; }
       irPara('pedidos');
     });
+    $('#detalhe-vencem').addEventListener('click', e => {
+      const v = e.target.closest('button[data-ver]'); const it = e.target.closest('.item');
+      if (v && v.dataset.ver === 'vence') { UI.filtros = { status: 'vence', remessa: 'todas' }; irPara('pedidos'); }
+      else if (v) { detalheVencemAberto = false; renderDash(); }
+      else if (it) { UI.filtros = { status: 'abertos', busca: it.dataset.po, remessa: 'todas' }; irPara('pedidos'); }
+    });
+    ['#graf-fornecedor', '#graf-time'].forEach(s => $(s).addEventListener('click', e => {
+      const b = e.target.closest('.barra-linha'); if (!b) return;
+      UI.filtros = { status: S.config.dashRecorte === 'todos' ? 'todos' : (S.config.dashRecorte || 'abertos'), remessa: 'todas' }; UI.filtros[b.dataset.chave] = b.dataset.v; irPara('pedidos');
+    }));
     $('#tarefas-hoje').addEventListener('change', e => { if (e.target.type === 'checkbox') concluirAcao(e.target.dataset.po); });
     $('#prox7').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) { UI.filtros = { status: 'abertos', busca: it.dataset.po, remessa: 'todas' }; irPara('pedidos'); } });
 
@@ -666,14 +828,13 @@
     [['#f-status', 'status'], ['#f-fornecedor', 'fornecedor'], ['#f-tipo', 'tipo'], ['#f-time', 'time'], ['#f-transp', 'transportadora']].forEach(([s, k]) => $(s).addEventListener('change', e => { UI.filtros[k] = e.target.value; salvarLocal(); renderPedidos(); }));
     $('#f-remessa').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; UI.filtros.remessa = b.dataset.v; salvarLocal(); renderPedidos(); });
     $('#btn-limpar-filtros').addEventListener('click', () => { UI.filtros = { status: 'abertos', remessa: UI.filtros.remessa || '1' }; salvarLocal(); renderPedidos(); });
-    $('#btn-colunas').addEventListener('click', e => { e.stopPropagation(); $('#pop-colunas').classList.toggle('oculto'); });
-    document.addEventListener('click', e => { if (!e.target.closest('.menu-colunas')) $('#pop-colunas').classList.add('oculto'); });
     $('#pop-colunas').addEventListener('change', e => {
       const k = e.target.value; const vis = new Set(S.config.colunasVisiveis);
       if (e.target.checked) vis.add(k); else vis.delete(k);
       S.config.colunasVisiveis = C.CAMPOS.map(c => c.k).concat((S.config.colunasExtras || []).map(x => 'x:' + x.k)).filter(x => vis.has(x));
-      salvarConfig(); renderPedidos(); $('#pop-colunas').classList.remove('oculto');
+      salvarConfig(); renderPedidos();
     });
+    $('#pop-exportar').addEventListener('click', e => { const b = e.target.closest('button[data-fmt]'); if (!b) return; exportarLista(listaFiltrada(), 'pedidos', b.dataset.fmt); fecharPopovers(); });
     $('#tabela-cab').addEventListener('click', e => {
       const th = e.target.closest('th'); if (!th || !th.dataset.col) return;
       const col = th.dataset.col;
@@ -689,10 +850,25 @@
       else if (b.dataset.acao === 'remessa2') moverRemessa(b.dataset.po, '2');
       else if (b.dataset.acao === 'remessa1') moverRemessa(b.dataset.po, '1');
     });
-    $('#btn-exportar').addEventListener('click', () => exportar(C.ordenar(C.filtrar(S.pedidos, Object.assign({}, UI.filtros, { periodo: periodoAtual() }), ctx()), UI.ordem.col, UI.ordem.dir, ctx()), 'pedidos'));
-    $('#btn-exportar-tudo').addEventListener('click', () => exportar(C.ordenar(S.pedidos, 'limite', 'asc', ctx()), 'pedidos-todos'));
+    $('#btn-exportar-tudo').addEventListener('click', () => exportarLista(C.ordenar(S.pedidos, 'limite', 'asc', ctx()), 'pedidos-todos', 'csv'));
+    $('#btn-exportar-tudo-xlsx').addEventListener('click', () => exportarLista(C.ordenar(S.pedidos, 'limite', 'asc', ctx()), 'pedidos-todos', 'xlsx'));
     $('#btn-novo').addEventListener('click', () => abrirPedido(null));
-    $('#form-pedido').addEventListener('submit', salvarModalPedido);
+
+    // modal pedido: chips, seletor de data
+    const form = $('#form-pedido');
+    form.addEventListener('submit', salvarModalPedido);
+    form.addEventListener('click', e => {
+      if (tratarCliqueDP(e)) return;
+      if (e.target.classList.contains('dp')) { abrirDP(e.target); return; }
+      const chip = e.target.closest('.chips-tag button'); if (!chip) return;
+      const wrap = chip.parentNode; const grupo = wrap.dataset.grupo;
+      const jaAtivo = chip.classList.contains('ativo');
+      $$('button', wrap).forEach(b => b.classList.remove('ativo'));
+      if (!jaAtivo) chip.classList.add('ativo');
+      form[grupo].value = jaAtivo ? '' : chip.dataset.v;
+    });
+    form.addEventListener('focusin', e => { if (e.target.classList.contains('dp')) abrirDP(e.target); });
+    form.addEventListener('change', e => { if (e.target.classList.contains('dp')) normalizarDP(e.target); });
     $('#btn-cancelar-pedido').addEventListener('click', () => $('#dlg-pedido').close());
     $('#btn-excluir-pedido').addEventListener('click', () => { if (pedidoEmEdicao && confirm('Excluir o PO ' + pedidoEmEdicao.po + '? Isso apaga da planilha também.')) { excluirPedido(pedidoEmEdicao.po); $('#dlg-pedido').close(); } });
 
@@ -705,7 +881,8 @@
     drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) lerArquivo(f); });
     $('#imp-confirmar').addEventListener('click', confirmarImportacao);
 
-    // config: conexão
+    // config: geral e conexão
+    $('#c-nomeSistema').addEventListener('change', e => { S.config.nomeSistema = e.target.value.trim() || C.CONFIG_PADRAO.nomeSistema; e.target.value = S.config.nomeSistema; salvarConfig(); aplicarNome(); });
     $('#btn-testar-conexao').addEventListener('click', async () => {
       L.apiUrl = $('#c-apiUrl').value.trim(); L.chave = $('#c-chave').value.trim(); salvarLocal();
       const msg = $('#conexao-msg');
@@ -841,7 +1018,7 @@
     $('#aviso').addEventListener('click', e => {
       const b = e.target.closest('button[data-aviso]'); if (!b) return;
       if (b.dataset.aviso === 'tentar') { SY.forcarAviso = true; flush().then(() => { if (!S.fila.length) toast('Tudo gravado na planilha'); }); }
-      else if (b.dataset.aviso === 'copia') exportar(C.ordenar(S.pedidos, 'limite', 'asc', ctx()), 'pedidos-copia');
+      else if (b.dataset.aviso === 'copia') exportarLista(C.ordenar(S.pedidos, 'limite', 'asc', ctx()), 'pedidos-copia', 'xlsx');
       else if (b.dataset.aviso === 'config') { irPara('config'); $('#cfg-conexao').scrollIntoView(); }
     });
     $('#sync').addEventListener('click', () => { if (S.fila.length) { SY.forcarAviso = true; renderAviso(); flush(); } });
@@ -858,6 +1035,7 @@
   // ---------------- Boot ----------------
   carregar();
   ligarEventos();
+  aplicarNome();
   renderPeriodo();
   aplicarCoresStatus();
   renderDatalists();
@@ -865,5 +1043,5 @@
   irPara(['dash', 'pedidos', 'config'].includes(abaInicial) ? abaInicial : (conectado() || S.pedidos.length ? UI.aba : 'config'));
   atualizarSync();
   if (conectado()) sincronizar(true);
-  window.SJO = { S, L, UI, SY, LIMIAR, sincronizar, flush, renderAviso }; // pra depuração no console
+  window.SJO = { S, L, UI, SY, LIMIAR, PC, sincronizar, flush, renderAviso, exportarLista, definirPeriodo }; // pra depuração no console
 })();

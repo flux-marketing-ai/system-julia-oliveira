@@ -69,6 +69,8 @@ O sistema tem duas partes:
 - **Todo dia:** o e-mail chega; a aba Dash mostra o mesmo em tela, com a lista "Hoje" pra ir marcando.
 - **Editar:** clique direto na célula (observação, próxima ação, data da ação, entregue). Salva sozinho. "Salvo" em verde no canto = gravou na planilha.
 - **Finalizar:** botão ✓ na linha. Some da lista padrão (filtro "Abertos"), fica no histórico (filtro "Finalizados"). Errou? "Reabrir".
+- **Período:** o botão de calendário no topo vale pra todas as abas. Atalhos (hoje, ontem, últimos 7/14/60/90 dias, este mês, mês passado, próximos 7/14/30 dias) ou uma faixa no calendário (clique no início e no fim). "Aplicar em" escolhe se o período olha a data limite ou o envio do PO.
+- **Exportar:** botão "Exportar" → Excel (.xlsx, abre direto, datas e valores já formatados) ou CSV. Sai só o que está filtrado na tela; em Configurações → Dados sai tudo.
 - **Segunda remessa:** o seletor "1ª remessa | 2ª remessa | Todas" no topo da tabela. Um pedido vai pra 2ª remessa de dois jeitos: você digita a quantidade "Entregue" (ligue a coluna no botão Colunas) e o saldo fica em aberto na 2ª, com a tag "Saldo"; ou clica "→ 2ª" na linha (item similar, BO, etc.). "← 1ª" desfaz.
 - **Fornecedor novo no relatório:** entra sozinho em Configurações → Fornecedores, sem cor. Complete transportadora, dia de entrega e prazo de NF quando quiser. Isso aparece ao passar o mouse no nome dele na tabela.
 - **Tag nova no relatório:** entra sozinha em Configurações → Tags de tipo, com o código. Dê nome e cor.

@@ -49,7 +49,7 @@ async function json(url) { const r = await fetch(url); return r.json(); }
   let ok = 0; const falhas = [];
   const t = (nome, cond) => { if (cond) ok++; else falhas.push(nome); };
 
-  t('título', await ev('document.title') === 'Pedidos');
+  t('título', await ev('document.title') === 'Sistema Westwing');
   t('aba pedidos ativa', await ev(`document.querySelector('.aba.ativa').dataset.aba`) === 'pedidos');
   t('sem planilha', await ev(`document.querySelector('#sync').textContent`) === 'Sem planilha');
   t('tabela vazia', await ev(`document.querySelector('#tabela-vazio').classList.contains('oculto')`) === false);
@@ -120,12 +120,90 @@ async function json(url) { const r = await fetch(url); return r.json(); }
   t('valor em BR no dash', /R\$\s?[\d.]+,\d{2}/.test(await ev(`document.querySelector('#kpis').textContent`)));
   await ev(`(function(){ const c = document.querySelector('#tarefas-hoje input[type=checkbox]'); c.checked = true; c.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
   t('ação concluída vira obs', /Agendar .*✓/.test(await ev(`SJO.S.pedidos.find(p=>p.po==='900002').obs`)));
-  // período global persiste entre abas
-  await ev(`(function(){ const s = document.querySelector('#periodo-preset'); s.value = '30'; s.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
+  // "vencem em breve": detalhe por dia
+  await ev(`document.querySelector('.kpi[data-filtro="vence"]').click(); 'ok'`);
+  t('detalhe vencem abre', await ev(`document.querySelector('#detalhe-vencem').classList.contains('oculto')`) === false);
+  t('detalhe tem Hoje e Amanhã', /Hoje/.test(await ev(`document.querySelector('#detalhe-vencem').textContent`)) && /Amanhã/.test(await ev(`document.querySelector('#detalhe-vencem').textContent`)));
+  await ev(`document.querySelector('#detalhe-vencem button[data-ver="fechar"]').click(); 'ok'`);
+  t('detalhe vencem fecha', await ev(`document.querySelector('#detalhe-vencem').classList.contains('oculto')`) === true);
+  // por time: tabela
+  await ev(`document.querySelector('#time-vista button[data-v="tabela"]').click(); 'ok'`);
+  t('tabela por time', await ev(`document.querySelectorAll('#graf-time table.tab-mini tbody tr').length`) === 3);
+  await ev(`document.querySelector('#time-vista button[data-v="grafico"]').click(); 'ok'`);
+  t('gráfico por time de volta', await ev(`document.querySelectorAll('#graf-time .barra-linha').length`) === 3);
+  await dorme(100);
+  t('barras animadas com largura', await ev(`Array.from(document.querySelectorAll('#graf-fornecedor .fill')).every(f => parseFloat(f.style.width) > 0)`) === true);
+  // próximos dias: chips
+  await ev(`document.querySelector('#prox-dias button[data-dias="30"]').click(); 'ok'`);
+  t('próximos 30 lista mais', await ev(`document.querySelectorAll('#prox7 .item').length`) === 3);
+  t('chip 30 ativo', await ev(`document.querySelector('#prox-dias button[data-dias="30"]').classList.contains('ativo')`) === true);
+  t('título por fornecedor × métrica', /Por fornecedor × Pedidos/.test(await ev(`document.querySelector('#tit-forn').textContent`)));
+  t('nome do sistema no topo', await ev(`document.querySelector('#logo').textContent`) === 'Sistema Westwing' && await ev('document.title') === 'Sistema Westwing');
+
+  // período global: popover com presets, persiste entre abas
+  await ev(`document.querySelector('#periodo-btn').click(); 'ok'`);
+  t('popover período abre', await ev(`document.querySelector('#periodo-pop').classList.contains('oculto')`) === false);
+  t('presets renderizados', await ev(`document.querySelectorAll('#pp-presets button[data-preset]').length`) === 12);
+  t('calendário com 2 meses', await ev(`document.querySelectorAll('#pp-cal .cal-mes').length`) === 2);
+  await ev(`document.querySelector('#pp-presets button[data-preset="p30"]').click(); 'ok'`);
+  t('rótulo próximos 30', /Próximos 30 dias/.test(await ev(`document.querySelector('#periodo-rotulo').textContent`)));
+  t('popover fechou', await ev(`document.querySelector('#periodo-pop').classList.contains('oculto')`) === true);
   await ev(`document.querySelector('.aba[data-aba="pedidos"]').click(); 'ok'`);
-  t('período mantido na outra aba', await ev(`document.querySelector('#periodo-preset').value`) === '30');
+  t('período mantido na outra aba', /Próximos 30 dias/.test(await ev(`document.querySelector('#periodo-rotulo').textContent`)));
   t('período filtra tabela', await ev(`document.querySelectorAll('#tabela-corpo tr').length`) <= 4);
-  await ev(`(function(){ const s = document.querySelector('#periodo-preset'); s.value = 'tudo'; s.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
+  // faixa personalizada clicando no calendário
+  await ev(`document.querySelector('#periodo-btn').click(); 'ok'`);
+  await ev(`document.querySelector('#pp-cal button[data-dia="' + Core.hojeISO() + '"]').click(); 'ok'`);
+  t('primeiro clique fica pendente', /agora clique no fim/.test(await ev(`document.querySelector('#pp-dica').textContent`)));
+  const fim = await ev(`Core.addDias(Core.hojeISO(), 20)`);
+  await ev(`(function(){ let b = document.querySelector('#pp-cal button[data-dia="${fim}"]'); if (!b) { document.querySelector('#pp-cal button[data-nav="1"]').click(); b = document.querySelector('#pp-cal button[data-dia="${fim}"]'); } b.click(); return 'ok'; })()`);
+  t('faixa aplicada', await ev(`SJO.S.config.periodo.de`) === await ev(`Core.hojeISO()`) && await ev(`SJO.S.config.periodo.ate`) === fim && await ev(`SJO.S.config.periodo.preset`) === 'custom');
+  t('rótulo faixa', /–/.test(await ev(`document.querySelector('#periodo-rotulo').textContent`)));
+  // aplicar em envio
+  await ev(`document.querySelector('#periodo-btn').click(); document.querySelector('#pp-campo button[data-v="envio"]').click(); 'ok'`);
+  t('campo envio', await ev(`SJO.S.config.periodo.campo`) === 'envio' && /envio/.test(await ev(`document.querySelector('#periodo-rotulo').textContent`)));
+  await ev(`document.querySelector('#pp-presets button[data-preset="tudo"]').click(); 'ok'`);
+  t('tudo limpa', await ev(`document.querySelector('#periodo-rotulo').textContent`) === 'Todo o período');
+
+  // pedidos: contadores de remessa, filtro ativo escuro, limpar com contagem
+  await ev(`document.querySelector('.aba[data-aba="pedidos"]').click(); 'ok'`);
+  t('contador 1ª remessa', await ev(`document.querySelector('[data-cont="1"]').textContent`) === '4');
+  t('contador todas', await ev(`document.querySelector('[data-cont="todas"]').textContent`) === '4');
+  t('limpar oculto sem filtro', await ev(`document.querySelector('#btn-limpar-filtros').classList.contains('oculto')`) === true);
+  await ev(`(function(){ const s = document.querySelector('#f-tipo'); s.value = 'now_pre_buy'; s.dispatchEvent(new Event('change', {bubbles:true})); return 'ok'; })()`);
+  t('select ativo escurece', await ev(`document.querySelector('#f-tipo').classList.contains('ativo')`) === true);
+  t('limpar aparece com contagem', await ev(`document.querySelector('#btn-limpar-filtros').classList.contains('oculto')`) === false && await ev(`document.querySelector('#n-filtros').textContent`) === '1');
+  await ev(`document.querySelector('#btn-limpar-filtros').click(); 'ok'`);
+  t('limpar zera', await ev(`document.querySelector('#f-tipo').classList.contains('ativo')`) === false);
+  // exportar: menu com Excel e CSV (intercepta o download)
+  await ev(`window.__blobs = []; URL.createObjectURL = b => { window.__blobs.push({ size: b.size, type: b.type }); return 'blob:x'; }; 'ok'`);
+  await ev(`document.querySelector('#btn-exportar').click(); 'ok'`);
+  t('menu exportar abre', await ev(`document.querySelector('#pop-exportar').classList.contains('oculto')`) === false);
+  await ev(`document.querySelector('#pop-exportar button[data-fmt="xlsx"]').click(); 'ok'`);
+  t('xlsx gerado', await ev(`window.__blobs.length === 1 && window.__blobs[0].size > 1500 && /spreadsheetml/.test(window.__blobs[0].type)`) === true);
+  await ev(`document.querySelector('#btn-exportar').click(); document.querySelector('#pop-exportar button[data-fmt="csv"]').click(); 'ok'`);
+  t('csv gerado', await ev(`window.__blobs.length === 2 && /csv/.test(window.__blobs[1].type)`) === true);
+  // novo pedido: chips de tipo com cor, seletor de data, obrigatórios
+  await ev(`document.querySelector('#btn-novo').click(); 'ok'`);
+  t('modal novo aberto', await ev(`document.querySelector('#dlg-pedido').open`) === true);
+  t('chips de tipo com bolinha', await ev(`document.querySelectorAll('.chips-tag[data-grupo="tipo"] button .bola').length`) >= 7 && await ev(`document.querySelector('.chips-tag[data-grupo="tipo"] button[data-v="saldo"]')`) === null);
+  await ev(`document.querySelector('#form-pedido button[type="submit"]').click(); 'ok'`);
+  t('bloqueia sem PO', await ev(`document.querySelector('#dlg-pedido').open`) === true && /Informe o PO/.test(await ev(`document.querySelector('#toast').textContent`)));
+  await ev(`(function(){ const f = document.querySelector('#form-pedido'); f.po.value = 'M1'; f.fornecedor.value = 'NOVO FORN'; f.limite.click(); return 'ok'; })()`);
+  t('calendário do campo abre', await ev(`document.querySelector('#form-pedido .campo-dp .dp-cal:not(.oculto)') !== null`) === true);
+  await ev(`document.querySelector('#form-pedido .dp-cal:not(.oculto) button[data-dia="' + Core.addDias(Core.hojeISO(), 5) + '"]').click(); 'ok'`);
+  t('data preenchida em BR', await ev(`document.querySelector('#form-pedido').limite.value`) === await ev(`Core.fmtData(Core.addDias(Core.hojeISO(), 5))`));
+  t('calendário fechou', await ev(`document.querySelector('#form-pedido .campo-dp .dp-cal:not(.oculto)') === null`) === true);
+  await ev(`document.querySelector('.chips-tag[data-grupo="tipo"] button[data-v="now_pre_buy"]').click(); 'ok'`);
+  t('chip tipo selecionado', await ev(`document.querySelector('#form-pedido').tipo.value`) === 'now_pre_buy');
+  await ev(`document.querySelector('#form-pedido button[type="submit"]').click(); 'ok'`);
+  t('pedido manual salvo', await ev(`SJO.S.pedidos.find(p => p.po === 'M1') && SJO.S.pedidos.find(p => p.po === 'M1').limite === Core.addDias(Core.hojeISO(), 5) && SJO.S.pedidos.find(p => p.po === 'M1').tipo === 'now_pre_buy'`) === true);
+  t('fornecedor novo cadastrado', await ev(`SJO.S.fornecedores.some(f => f.nome === 'NOVO FORN')`) === true);
+  // envio + lead calculam a data limite
+  await ev(`document.querySelector('#btn-novo').click(); (function(){ const f = document.querySelector('#form-pedido'); f.po.value = 'M2'; f.fornecedor.value = 'NOVO FORN'; f.envio.value = '16/09/2026'; f.leadWms.value = '15'; return 'ok'; })()`);
+  await ev(`document.querySelector('#form-pedido button[type="submit"]').click(); 'ok'`);
+  t('limite calculada por dias úteis', await ev(`SJO.S.pedidos.find(p => p.po === 'M2').limite`) === '2026-10-07');
+  await ev(`SJO.S.pedidos = SJO.S.pedidos.filter(p => !/^M/.test(p.po)); SJO.S.fornecedores = SJO.S.fornecedores.filter(f => f.nome !== 'NOVO FORN'); 'ok'`);
 
   // config
   await ev(`document.querySelector('.aba[data-aba="config"]').click(); 'ok'`);

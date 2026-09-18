@@ -325,3 +325,15 @@ Validação item a item. O que mudou em relação ao rascunho:
 - v1 construída e no ar em 18/09 (ver README). Falta: Julia instalar a planilha (docs/02-instalacao.md) e testar com relatório real.
 - Teste com relatório real: Julia ou o próprio Victor.
 - Perguntar à Julia se precisa importar histórico a partir de alguma data (a planilha atual tem 505 linhas na página 1).
+
+---
+
+## 14. Rodada de UX (Victor, 18/09/2026, tarde)
+
+Aplicado e publicado:
+- Nome "Sistema Westwing" (editável em Configurações → Geral). Espaçamento ~20% maior.
+- Filtro de período com atalhos (hoje, ontem, últimos 7/14/60/90, este mês, mês passado, próximos 7/14/30), calendário de faixa e escolha de "aplicar em": data limite (padrão) ou envio do PO. Persiste entre abas.
+- Dash por seções: Dados (5 cards, "Vencem em breve" abre detalhe por dia), Por fornecedor × métrica (barras animadas, top 5/10/20, clique filtra a tabela), Por time (gráfico ou tabela), Próximos dias (2/7/14/30/60/90), Lembrete (tarefas de hoje com checklist, atrasadas separadas).
+- Pedidos: seletor de remessa em destaque com contagem e ícones; filtro ativo fica escuro; "Limpar" só aparece com filtro e mostra quantos; ícones em Colunas e Exportar.
+- Exportar: Excel (.xlsx real, sem biblioteca: data como data, valor com formato R$, cabeçalho fixo, filtro) ou CSV.
+- Novo pedido: obrigatórios primeiro, tipo/time como chips com a cor da tag, calendário próprio nos campos de data, "mais detalhes" recolhido, data limite calculada por envio + lead se ficar vazia.

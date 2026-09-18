@@ -159,6 +159,7 @@
     { k: 'status', nome: 'Status', tipo: 'status', origem: 'app', padrao: true },
     { k: 'fornecedor', nome: 'Fornecedor', tipo: 'fornecedor', origem: 'relatorio', padrao: true },
     { k: 'tipo', nome: 'Tipo', tipo: 'tag', origem: 'relatorio', padrao: true },
+    { k: 'time', nome: 'Time', tipo: 'time', origem: 'relatorio', padrao: true },
     { k: 'limite', nome: 'Data limite', tipo: 'data', origem: 'relatorio', padrao: true },
     { k: 'qtd', nome: 'Qtd', tipo: 'int', origem: 'relatorio', padrao: true },
     { k: 'qtdEntregue', nome: 'Entregue', tipo: 'int', origem: 'julia', padrao: false },
@@ -168,7 +169,6 @@
     { k: 'obs', nome: 'Observação', tipo: 'texto', origem: 'julia', padrao: true },
     { k: 'update', nome: 'Update', tipo: 'data', origem: 'app', padrao: true },
     { k: 'remessa', nome: 'Remessa', tipo: 'texto', origem: 'julia', padrao: false },
-    { k: 'time', nome: 'Time', tipo: 'time', origem: 'relatorio', padrao: true },
     { k: 'valor', nome: 'Valor', tipo: 'moeda', origem: 'relatorio', padrao: false },
     { k: 'armazem', nome: 'Armazém', tipo: 'texto', origem: 'relatorio', padrao: false },
     { k: 'campanha', nome: 'Campanha', tipo: 'texto', origem: 'relatorio', padrao: false },
@@ -195,13 +195,15 @@
 
   const CONFIG_PADRAO = {
     apiUrl: '', chave: '',
+    nomeSistema: 'Sistema Westwing',
+    dashProximos: 7, dashTimeVista: 'grafico', dashTop: 10,
     avisosAtivo: true, emailDestino: '', hora: 8, diasSemana: [1, 2, 3, 4, 5], antecedencia: 2,
     enviarSeVazio: false, linkApp: '',
     colunasVisiveis: CAMPOS.filter(c => c.padrao).map(c => c.k),
     colunasExtras: [],          // [{k, nome, cabecalho}] colunas novas vindas do relatório
     mapeamento: Object.assign({}, MAPEAMENTO_PADRAO),
     ignorarCabecalhos: [],       // cabeçalhos do relatório que ela mandou ignorar
-    periodo: { de: '', ate: '' },
+    periodo: { preset: 'tudo', de: '', ate: '', campo: 'limite' },
     dashMetrica: 'pedidos', dashRecorte: 'abertos',
     statusNomes: { atrasado: 'Atrasado', vence: 'Vence em breve', andamento: 'Em andamento', finalizado: 'Finalizado' },
     statusCores: { atrasado: '#e5484d', vence: '#f5a524', andamento: '#3b82f6', finalizado: '#9ca3af' }
@@ -336,10 +338,39 @@
   // ---------- Filtros / ordenação ----------
   function noPeriodo(p, periodo) {
     if (!periodo || (!periodo.de && !periodo.ate)) return true;
-    if (!p.limite) return true;
-    if (periodo.de && p.limite < periodo.de) return false;
-    if (periodo.ate && p.limite > periodo.ate) return false;
+    const d = p[periodo.campo === 'envio' ? 'envio' : 'limite'];
+    if (!d) return true;
+    if (periodo.de && d < periodo.de) return false;
+    if (periodo.ate && d > periodo.ate) return false;
     return true;
+  }
+
+  // Presets do filtro de período. Devolve {de, ate} (vazios = todo o período).
+  const PRESETS_PERIODO = [
+    { id: 'tudo', nome: 'Todo o período' }, { id: 'hoje', nome: 'Hoje' }, { id: 'ontem', nome: 'Ontem' },
+    { id: 'u7', nome: 'Últimos 7 dias' }, { id: 'u14', nome: 'Últimos 14 dias' }, { id: 'mes', nome: 'Este mês' },
+    { id: 'mesPassado', nome: 'Mês passado' }, { id: 'u60', nome: 'Últimos 60 dias' }, { id: 'u90', nome: 'Últimos 90 dias' },
+    { id: 'p7', nome: 'Próximos 7 dias' }, { id: 'p14', nome: 'Próximos 14 dias' }, { id: 'p30', nome: 'Próximos 30 dias' },
+    { id: 'custom', nome: 'Personalizado' }
+  ];
+  function calcularPeriodo(preset, hoje) {
+    hoje = hoje || hojeISO();
+    const fimMes = iso => { const d = isoParaDate(iso); return hojeISO(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
+    const m = /^([up])(\d+)$/.exec(preset || '');
+    if (m) return m[1] === 'u' ? { de: addDias(hoje, -(Number(m[2]) - 1)), ate: hoje } : { de: hoje, ate: addDias(hoje, Number(m[2]) - 1) };
+    switch (preset) {
+      case 'hoje': return { de: hoje, ate: hoje };
+      case 'ontem': { const o = addDias(hoje, -1); return { de: o, ate: o }; }
+      case 'mes': return { de: hoje.slice(0, 8) + '01', ate: fimMes(hoje) };
+      case 'mesPassado': { const ini = addDias(hoje.slice(0, 8) + '01', -1).slice(0, 8) + '01'; return { de: ini, ate: fimMes(ini) }; }
+      default: return { de: '', ate: '' };
+    }
+  }
+  function rotuloPeriodo(periodo) {
+    if (!periodo || (!periodo.de && !periodo.ate)) return 'Todo o período';
+    const pr = PRESETS_PERIODO.find(x => x.id === periodo.preset);
+    const faixa = periodo.de === periodo.ate ? fmtDataCurta(periodo.de) : (periodo.de ? fmtDataCurta(periodo.de) : '…') + ' – ' + (periodo.ate ? fmtDataCurta(periodo.ate) : '…');
+    return (pr && pr.id !== 'custom' ? pr.nome + ' · ' : '') + faixa;
   }
 
   function filtrar(pedidos, f, ctx) {
@@ -388,10 +419,10 @@
   }
 
   // ---------- Resumo (Dash + e-mail) ----------
-  function resumo(pedidos, hoje, antecedencia) {
+  function resumo(pedidos, hoje, antecedencia, diasProximos) {
     hoje = hoje || hojeISO(); antecedencia = antecedencia == null ? 2 : antecedencia;
-    const r = { atrasados: [], vencem: [], acoesHoje: [], andamento: [], finalizados: [], abertos: [], proximos7: [] };
-    const lim7 = addDias(hoje, 7);
+    const r = { atrasados: [], vencem: [], acoesHoje: [], andamento: [], finalizados: [], abertos: [], proximos: [] };
+    const lim7 = addDias(hoje, diasProximos || 7);
     pedidos.forEach(p => {
       const st = statusDe(p, hoje, antecedencia);
       if (st === 'finalizado') { r.finalizados.push(p); return; }
@@ -400,10 +431,11 @@
       else if (st === 'vence') r.vencem.push(p);
       else r.andamento.push(p);
       if (p.dataAcao && p.dataAcao <= hoje) r.acoesHoje.push(p);
-      if (p.limite && p.limite >= hoje && p.limite <= lim7) r.proximos7.push(p);
+      if (p.limite && p.limite >= hoje && p.limite <= lim7) r.proximos.push(p);
     });
     const porLimite = (a, b) => (a.limite || '') < (b.limite || '') ? -1 : 1;
-    r.atrasados.sort(porLimite); r.vencem.sort(porLimite); r.proximos7.sort(porLimite);
+    r.atrasados.sort(porLimite); r.vencem.sort(porLimite); r.proximos.sort(porLimite);
+    r.proximos7 = r.proximos;
     r.acoesHoje.sort((a, b) => (a.dataAcao || '') < (b.dataAcao || '') ? -1 : 1);
     return r;
   }
@@ -417,6 +449,19 @@
       m.set(k, (m.get(k) || 0) + v);
     });
     return Array.from(m, ([chave, valor]) => ({ chave, valor })).sort((a, b) => b.valor - a.valor).slice(0, top || 10);
+  }
+
+  // Tabela por chave (ex.: time): pedidos, peças em aberto, valor, atrasados
+  function tabelaPor(pedidos, chave, hoje, antecedencia) {
+    hoje = hoje || hojeISO();
+    const m = new Map();
+    pedidos.forEach(p => {
+      const k = p[chave] || '(sem ' + chave + ')';
+      if (!m.has(k)) m.set(k, { chave: k, pedidos: 0, pecas: 0, valor: 0, atrasados: 0 });
+      const r = m.get(k); r.pedidos++; r.pecas += saldo(p); r.valor += Number(p.valor) || 0;
+      if (statusDe(p, hoje, antecedencia) === 'atrasado') r.atrasados++;
+    });
+    return Array.from(m.values()).sort((a, b) => b.pedidos - a.pedidos);
   }
 
   // Texto do e-mail diário. Usado pelo Apps Script (mesma função copiada lá) e pelo botão "prévia".
@@ -461,6 +506,79 @@
     return '\uFEFF' + linhas.join('\r\n');
   }
 
+  // ---------- Excel (.xlsx) sem biblioteca: zip "store" + SpreadsheetML mínimo ----------
+  const CRC_TAB = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_TAB[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zipStore(arquivos) { // [{nome, texto}] -> Uint8Array
+    const enc = new TextEncoder(); const partes = []; const cd = []; let off = 0;
+    const d = new Date(); const dosT = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1); const dosD = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const u16 = n => [n & 255, (n >> 8) & 255], u32 = n => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255];
+    arquivos.forEach(a => {
+      const nome = enc.encode(a.nome), dados = enc.encode(a.texto), crc = crc32(dados);
+      const loc = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(dosT), ...u16(dosD), ...u32(crc), ...u32(dados.length), ...u32(dados.length), ...u16(nome.length), ...u16(0), ...nome]);
+      partes.push(loc, dados);
+      cd.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(dosT), ...u16(dosD), ...u32(crc), ...u32(dados.length), ...u32(dados.length), ...u16(nome.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off), ...nome]));
+      off += loc.length + dados.length;
+    });
+    const cdLen = cd.reduce((s, x) => s + x.length, 0);
+    const fim = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(cd.length), ...u16(cd.length), ...u32(cdLen), ...u32(off), ...u16(0)]);
+    const total = partes.concat(cd, [fim]); const out = new Uint8Array(total.reduce((s, x) => s + x.length, 0)); let p = 0;
+    total.forEach(x => { out.set(x, p); p += x.length; });
+    return out;
+  }
+  const xmlEsc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  function colLetra(n) { let s = ''; n++; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; }
+  function serialExcel(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(1899, 11, 30)) / 86400000) : null; }
+  // colunas: [{nome, tipo: texto|int|moeda|data}], linhas: [[valor,...]] (data em ISO). Devolve Uint8Array do .xlsx
+  function xlsx(nomeAba, colunas, linhas) {
+    const n = colunas.length, ref = 'A1:' + colLetra(n - 1) + (linhas.length + 1);
+    const cel = (r, c, v, tipo) => {
+      const ref = colLetra(c) + r;
+      if (tipo === 'cab') return '<c r="' + ref + '" t="inlineStr" s="3"><is><t xml:space="preserve">' + xmlEsc(v) + '</t></is></c>';
+      if (v === '' || v == null) return '';
+      if (tipo === 'data') { const s = serialExcel(v); return s == null ? '' : '<c r="' + ref + '" s="1"><v>' + s + '</v></c>'; }
+      if (tipo === 'moeda') return '<c r="' + ref + '" s="2"><v>' + (Number(v) || 0) + '</v></c>';
+      if (tipo === 'int') return '<c r="' + ref + '" s="4"><v>' + (Number(v) || 0) + '</v></c>';
+      return '<c r="' + ref + '" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(v) + '</t></is></c>';
+    };
+    const largura = colunas.map((c, i) => Math.min(60, Math.max(10, c.nome.length + 2, ...linhas.slice(0, 200).map(l => String(l[i] == null ? '' : l[i]).length + 2))));
+    const sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+      '<cols>' + largura.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' +
+      '<row r="1">' + colunas.map((c, i) => cel(1, i, c.nome, 'cab')).join('') + '</row>' +
+      linhas.map((l, r) => '<row r="' + (r + 2) + '">' + colunas.map((c, i) => cel(r + 2, i, l[i], c.tipo)).join('') + '</row>').join('') +
+      '</sheetData><autoFilter ref="' + ref + '"/></worksheet>';
+    const aba = xmlEsc(String(nomeAba || 'Dados').slice(0, 31));
+    const arquivos = [
+      { nome: '[Content_Types].xml', texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+      { nome: '_rels/.rels', texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+      { nome: 'xl/workbook.xml', texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + aba + '" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">\'' + aba + '\'!$A$1:$' + colLetra(n - 1) + '$' + (linhas.length + 1) + '</definedName></definedNames></workbook>' },
+      { nome: 'xl/_rels/workbook.xml.rels', texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+      { nome: 'xl/styles.xml', texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="&quot;R$ &quot;#,##0.00"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' },
+      { nome: 'xl/worksheets/sheet1.xml', texto: sheet }
+    ];
+    return zipStore(arquivos);
+  }
+  // Mesmas colunas do exportarCSV, com tipos certos pro Excel
+  function exportarXLSX(pedidos, colunas, ctx) {
+    const hoje = (ctx && ctx.hoje) || hojeISO();
+    const nomes = (ctx && ctx.statusNomes) || CONFIG_PADRAO.statusNomes;
+    const cols = colunas.map(k => {
+      if (k === 'status' || k === 'remessa' || k.startsWith('x:')) return { k, nome: k.startsWith('x:') ? ((ctx && ctx.extrasNome && ctx.extrasNome[k.slice(2)]) || k.slice(2)) : CAMPO[k].nome, tipo: 'texto' };
+      if (k === 'saldo') return { k, nome: 'Saldo', tipo: 'int' };
+      const c = CAMPO[k]; return { k, nome: c ? c.nome : k, tipo: c ? (c.tipo === 'data' ? 'data' : c.tipo === 'moeda' ? 'moeda' : c.tipo === 'int' ? 'int' : 'texto') : 'texto' };
+    });
+    const linhas = pedidos.map(p => cols.map(c => {
+      const k = c.k;
+      if (k === 'status') return nomes[statusDe(p, hoje, ctx && ctx.antecedencia)];
+      if (k === 'saldo') return saldo(p);
+      if (k === 'remessa') return remessaDe(p) === '2' ? '2ª remessa' : '1ª remessa';
+      if (k.startsWith('x:')) return (p.extras || {})[k.slice(2)] || '';
+      return p[k] == null ? '' : p[k];
+    }));
+    return xlsx((ctx && ctx.nomeAba) || 'Pedidos', cols, linhas);
+  }
+
   // ---------- Fornecedores ----------
   function acharFornecedor(nome, fornecedores) {
     const n = norm(nome);
@@ -479,6 +597,7 @@
     parseNumBR, fmtMoeda, fmtInt, fmtPct, detectaSeparador, parseCSV, csvLinha, norm, normChave,
     CAMPOS, CAMPO, MAPEAMENTO_PADRAO, CONFIG_PADRAO, TAGS_PADRAO, ACOES_PADRAO,
     pedidoVazio, saldo, temSaldo, remessaDe, statusDe, aberto, casarCabecalhos, linhaParaPedido, mesclarImportacao,
-    noPeriodo, filtrar, ordenar, resumo, agrupar, textoResumo, exportarCSV, acharFornecedor, id
+    noPeriodo, PRESETS_PERIODO, calcularPeriodo, rotuloPeriodo, filtrar, ordenar, resumo, tabelaPor, agrupar, textoResumo, exportarCSV,
+    xlsx, exportarXLSX, crc32, acharFornecedor, id
   };
 });
